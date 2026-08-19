@@ -1,0 +1,73 @@
+// Weapon registry. Original designations (no trademarked names). Tuned so the
+// starting sidearm is viable early but wall-buys clearly outclass it by design.
+
+import type { WeaponDef } from "../sim/types";
+
+export const WEAPONS: Record<string, WeaponDef> = {
+  m9: {
+    id: "m9",
+    name: "M9 Sidearm",
+    damage: 40,
+    rpm: 360,
+    magSize: 12,
+    reserveMax: 96,
+    reloadTime: 1.3,
+    pellets: 1,
+    spread: 0.012,
+    auto: false,
+    range: 60,
+    wallCost: 0,
+    ammoCost: 100,
+  },
+  pdw: {
+    id: "pdw",
+    name: "PDW-57",
+    damage: 55,
+    rpm: 850,
+    magSize: 30,
+    reserveMax: 270,
+    reloadTime: 1.8,
+    pellets: 1,
+    spread: 0.03,
+    auto: true,
+    range: 55,
+    wallCost: 1000,
+    ammoCost: 500,
+  },
+  kr12: {
+    id: "kr12",
+    name: "KR-12",
+    damage: 130,
+    rpm: 600,
+    magSize: 30,
+    reserveMax: 300,
+    reloadTime: 2.2,
+    pellets: 1,
+    spread: 0.02,
+    auto: true,
+    range: 80,
+    wallCost: 1200,
+    ammoCost: 600,
+  },
+  breacher: {
+    id: "breacher",
+    name: "Breacher-12",
+    damage: 90,
+    rpm: 75,
+    magSize: 6,
+    reserveMax: 42,
+    reloadTime: 3.2,
+    pellets: 8,
+    spread: 0.14,
+    auto: false,
+    range: 26,
+    wallCost: 1500,
+    ammoCost: 750,
+  },
+};
+
+export function getWeapon(id: string): WeaponDef {
+  const def = WEAPONS[id];
+  if (!def) throw new Error(`unknown weapon: ${id}`);
+  return def;
+}
