@@ -1,0 +1,139 @@
+/* Undead Protocol — global styles. Dark facility / blood-and-amber HUD theme. */
+
+:root {
+  --bg: #0a0b0c;
+  --ink: #d7d3c8;
+  --muted: #7f8a84;
+  --blood: #8e1616;
+  --blood-bright: #e23b3b;
+  --amber: #ffb43a;
+  --toxic: #7bd651;
+  --panel: rgba(12, 14, 13, 0.82);
+  --panel-edge: rgba(123, 214, 81, 0.25);
+  font-family: "Rajdhani", "Segoe UI", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; background: var(--bg); color: var(--ink); overflow: hidden; }
+
+#app { position: fixed; inset: 0; }
+
+canvas { display: block; }
+
+/* The two render surfaces stack; only the active one is shown. */
+#view-3d, #view-2d { position: absolute; inset: 0; }
+#view-2d { background: #05060a; }
+.hidden { display: none !important; }
+
+/* ---- Crosshair ---- */
+#crosshair {
+  position: absolute; left: 50%; top: 50%; width: 26px; height: 26px;
+  transform: translate(-50%, -50%); pointer-events: none; opacity: 0.9;
+  mix-blend-mode: exclusion; z-index: 10;
+}
+#crosshair::before, #crosshair::after {
+  content: ""; position: absolute; background: #fff;
+}
+#crosshair::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
+#crosshair::after  { top: 50%; left: 0; height: 2px; width: 100%; transform: translateY(-50%); }
+
+/* ---- HUD ---- */
+#hud { position: absolute; inset: 0; pointer-events: none; z-index: 20; font-weight: 600; }
+#hud .hidden { display: none; }
+
+.hud-round {
+  position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
+  text-align: center; text-shadow: 0 2px 8px #000;
+}
+.hud-round .rword { font-size: 13px; letter-spacing: 6px; color: var(--blood-bright); text-transform: uppercase; }
+.hud-round .rnum { font-size: 54px; line-height: 0.9; color: #f4ede0; font-weight: 700; }
+
+.hud-points {
+  position: absolute; top: 24px; left: 26px;
+  font-size: 30px; color: var(--amber); text-shadow: 0 2px 6px #000;
+}
+.hud-points .plabel { font-size: 12px; letter-spacing: 3px; color: var(--muted); display: block; }
+
+.hud-weapon {
+  position: absolute; right: 26px; bottom: 22px; text-align: right; text-shadow: 0 2px 6px #000;
+}
+.hud-weapon .wname { font-size: 20px; letter-spacing: 2px; color: #efe7d8; text-transform: uppercase; }
+.hud-weapon .wammo { font-size: 40px; line-height: 1; color: #fff; }
+.hud-weapon .wammo .reserve { font-size: 22px; color: var(--muted); }
+.hud-weapon.reloading .wammo { color: var(--amber); }
+.hud-weapon.empty .wammo { color: var(--blood-bright); }
+
+.hud-health {
+  position: absolute; left: 26px; bottom: 26px; width: 260px;
+}
+.hud-health .bar { height: 12px; background: #1a1412; border: 1px solid #3a2a26; border-radius: 2px; overflow: hidden; }
+.hud-health .fill { height: 100%; width: 100%; background: linear-gradient(90deg, var(--blood), var(--blood-bright)); transition: width 0.12s linear; }
+.hud-health .hlabel { font-size: 11px; letter-spacing: 3px; color: var(--muted); margin-bottom: 4px; }
+
+.hud-prompt {
+  position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%);
+  background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 4px;
+  padding: 8px 16px; font-size: 15px; color: var(--ink); text-align: center;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+}
+.hud-prompt .key { color: var(--toxic); font-weight: 700; }
+.hud-prompt.cant .cost { color: var(--blood-bright); }
+
+.hud-view-tag {
+  position: absolute; right: 26px; top: 26px; font-size: 12px; letter-spacing: 3px;
+  color: var(--muted); text-transform: uppercase;
+}
+.hud-view-tag b { color: var(--toxic); }
+
+/* Damage vignette */
+#dmg-vignette {
+  position: absolute; inset: 0; pointer-events: none; z-index: 15; opacity: 0;
+  box-shadow: inset 0 0 160px 40px var(--blood); transition: opacity 0.2s ease-out;
+}
+
+/* Center banner (round change) */
+.hud-banner {
+  position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%);
+  font-size: 40px; letter-spacing: 8px; text-transform: uppercase; color: var(--blood-bright);
+  text-shadow: 0 4px 20px #000; opacity: 0; transition: opacity 0.4s ease;
+}
+.hud-banner.show { opacity: 1; }
+
+/* ---- Overlays (menu / game over) ---- */
+.overlay {
+  position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center;
+  background: radial-gradient(circle at 50% 30%, rgba(30,10,10,0.55), rgba(5,6,7,0.92) 70%);
+  backdrop-filter: blur(2px);
+}
+.overlay h1 {
+  font-size: 76px; letter-spacing: 10px; text-transform: uppercase; font-weight: 700;
+  color: #f0e8da; text-shadow: 0 0 28px rgba(226,59,59,0.5), 0 6px 10px #000;
+}
+.overlay h1 .accent { color: var(--blood-bright); }
+.overlay .tagline { color: var(--muted); letter-spacing: 4px; margin-top: 6px; font-size: 15px; text-transform: uppercase; }
+
+.menu-btns { margin-top: 42px; display: flex; flex-direction: column; gap: 14px; width: 320px; }
+.btn {
+  pointer-events: auto; cursor: pointer; font-family: inherit; font-weight: 700;
+  letter-spacing: 3px; text-transform: uppercase; font-size: 18px;
+  color: #0a0b0c; background: linear-gradient(180deg, var(--toxic), #4fa32f);
+  border: none; border-radius: 3px; padding: 14px 20px; transition: transform 0.08s ease, filter 0.15s ease;
+}
+.btn:hover { filter: brightness(1.12); transform: translateY(-1px); }
+.btn.secondary { background: transparent; color: var(--ink); border: 1px solid var(--panel-edge); }
+.btn.secondary:hover { background: rgba(123,214,81,0.08); }
+.btn.danger { background: linear-gradient(180deg, var(--blood-bright), var(--blood)); color: #fff; }
+
+.controls {
+  margin-top: 34px; color: var(--muted); font-size: 14px; letter-spacing: 1px;
+  display: grid; grid-template-columns: auto auto; gap: 6px 22px; text-align: left;
+}
+.controls .k { color: var(--toxic); font-weight: 700; }
+
+.gameover-stat { margin-top: 18px; font-size: 22px; color: var(--ink); }
+.gameover-stat b { color: var(--amber); font-size: 30px; }
+.gameover-best { color: var(--muted); letter-spacing: 2px; margin-top: 4px; }
+
+.credit { position: absolute; bottom: 16px; color: #445; font-size: 12px; letter-spacing: 2px; }
