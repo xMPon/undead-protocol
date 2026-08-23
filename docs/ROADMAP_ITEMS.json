@@ -1,0 +1,65 @@
+[
+  {
+    "id": "phase-1-complete-foundation",
+    "title": "Phase 1 base game foundation",
+    "phase": "Phase 1",
+    "status": "done",
+    "details": "Main menu, Blacksite map, dual 3D/2D renderers, core weapons, round system, economy, HUD, game over flow, and procedural audio are complete."
+  },
+  {
+    "id": "phase-1-map-select-menu",
+    "title": "Ship map-select menu",
+    "phase": "Phase 1",
+    "status": "todo",
+    "details": "Add a map-select menu so players can choose between maps instead of swapping the default map in code."
+  },
+  {
+    "id": "phase-1-four-more-maps",
+    "title": "Build four additional Phase 1 maps",
+    "phase": "Phase 1",
+    "status": "todo",
+    "details": "Create the remaining planned maps so Phase 1 has a broader playable map set beyond Blacksite."
+  },
+  {
+    "id": "phase-2-perks-and-cache",
+    "title": "Add perks and The Cache mystery box",
+    "phase": "Phase 2",
+    "status": "todo",
+    "details": "Implement Ironhide, Rapid Rounds, Fast Hands, Second Wind, and the Mystery Box feature (The Cache)."
+  },
+  {
+    "id": "phase-2-grenades-ads-and-regions",
+    "title": "Add grenades, ADS, and map progression extensions",
+    "phase": "Phase 2",
+    "status": "todo",
+    "details": "Implement grenades, aim-down-sights, more map regions, and board-up barriers."
+  },
+  {
+    "id": "phase-3-forge-and-dogs",
+    "title": "Add The Forge upgrades and Feral-Hound rounds",
+    "phase": "Phase 3",
+    "status": "todo",
+    "details": "Implement weapon upgrades at The Forge and special dog/Feral-Hound rounds."
+  },
+  {
+    "id": "phase-3-power-systems-second-map",
+    "title": "Add power systems, power-ups, and second map",
+    "phase": "Phase 3",
+    "status": "todo",
+    "details": "Implement power-ups (Resupply/Executioner/Purge/Bonus/Fortify), the power switch, and a second map."
+  },
+  {
+    "id": "phase-4-boss-content",
+    "title": "Add boss rounds, traps, and mini-quests",
+    "phase": "Phase 4",
+    "status": "todo",
+    "details": "Introduce boss encounters and objective-style side content."
+  },
+  {
+    "id": "phase-5-endgame-polish",
+    "title": "Add easter eggs, settings, and leaderboards",
+    "phase": "Phase 5",
+    "status": "todo",
+    "details": "Deliver musical/main-quest easter eggs, difficulty/settings controls, and leaderboard support."
+  }
+]

@@ -1,0 +1,38 @@
+name: Sync roadmap project
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/ROADMAP_ITEMS.json
+      - scripts/sync-roadmap-project.mjs
+      - .github/workflows/sync-roadmap-project.yml
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * *"
+
+permissions:
+  contents: read
+  issues: write
+  repository-projects: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Sync roadmap items into issues + project
+        env:
+          GITHUB_TOKEN: ${{ secrets.ROADMAP_PROJECT_TOKEN || github.token }}
+          ROADMAP_PROJECT_OWNER: ${{ vars.ROADMAP_PROJECT_OWNER || github.repository_owner }}
+          ROADMAP_PROJECT_NUMBER: ${{ vars.ROADMAP_PROJECT_NUMBER }}
+          ROADMAP_SOURCE_FILE: docs/ROADMAP_ITEMS.json
+          ROADMAP_LABEL: roadmap
+        run: node scripts/sync-roadmap-project.mjs

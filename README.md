@@ -58,6 +58,10 @@ survive. The published game is available at
 See [`CLAUDE.md`](CLAUDE.md) for the architecture and the full phase roadmap
 (perks, mystery box, weapon upgrades, dog rounds, boss rounds, easter eggs).
 
+Roadmap automation uses [`docs/ROADMAP_ITEMS.json`](docs/ROADMAP_ITEMS.json) as
+the source of truth and syncs it to GitHub Project roadmap items via
+[`docs/ROADMAP-SYNC.md`](docs/ROADMAP-SYNC.md).
+
 ---
 
 ## Develop
