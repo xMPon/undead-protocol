@@ -66,6 +66,12 @@ changes nothing about game state.
   `window`. That's what lets `tests/world.test.ts` drive the entire game in Node.
 - **The sim reads `Intent`, never `Input`.** View-specific mapping (camera-yaw
   aim in 3D, cursor aim in 2D) lives in each renderer's `buildIntent`.
+- **Roadmap every change.** Before introducing a feature, fixing a bug,
+  addressing technical debt, or making a meaningful maintenance change, link the
+  work to an existing roadmap issue or create a new categorised roadmap entry.
+  Start the linked issue before implementation and keep its status and details
+  aligned with the code change. Update `docs/ROADMAP_ITEMS.json` when the change
+  affects the planned roadmap so the GitHub Project sync remains accurate.
 - **No asset files.** Textures, sprites, and all SFX are generated at runtime
   (mirrors blockcraft's procedural atlas/sound philosophy).
 - **Names are original.** No trademarked perk/gun/map names — safe to
