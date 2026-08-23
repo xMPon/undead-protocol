@@ -122,29 +122,7 @@ async function getProjectData(projectOwner, projectNumber, token) {
               }
             }
           }
-          items(first: 200) {
-            nodes {
-              id
-              content {
-                ... on Issue { id number }
-              }
-            }
-          }
-        }
-      }
-      organization(login: $owner) {
-        projectV2(number: $number) {
-          id
-          fields(first: 50) {
-            nodes {
-              ... on ProjectV2SingleSelectField {
-                id
-                name
-                options { id name }
-              }
-            }
-          }
-          items(first: 200) {
+          items(first: 100) {
             nodes {
               id
               content {
@@ -158,7 +136,7 @@ async function getProjectData(projectOwner, projectNumber, token) {
   `;
 
   const data = await githubGraphql(token, query, { owner: projectOwner, number: projectNumber });
-  return data.user?.projectV2 ?? data.organization?.projectV2 ?? null;
+  return data.user?.projectV2 ?? null;
 }
 
 async function addIssueToProject(projectId, issueNodeId, token) {
