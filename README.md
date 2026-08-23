@@ -19,7 +19,8 @@ npm run dev
 ```
 
 Open the printed URL (default `http://localhost:5173`), click **Deploy**, and
-survive.
+survive. The published game is available at
+[`https://xMPon.github.io/undead-protocol/`](https://xMPon.github.io/undead-protocol/).
 
 ### Controls
 
@@ -72,17 +73,15 @@ is unit-tested in Node — see `tests/world.test.ts`.
 
 ---
 
-## Publishing to GitHub
+## Publishing to GitHub Pages
 
-This repo is initialized locally. To open-source it:
+GitHub Actions deploys the `dist` build whenever `main` changes. The Vite
+configuration uses `base: "/undead-protocol/"`, which matches this project's
+Pages URL.
 
-```bash
-gh repo create undead-protocol --public --source=. --remote=origin --push
-```
-
-(or create an empty repo on GitHub and `git remote add origin … && git push -u
-origin main`). `vite.config.ts` already sets `base: "/undead-protocol/"` for
-GitHub Pages.
+For the first deployment, open the repository's **Settings → Pages** and set
+**Source** to **GitHub Actions**. After that, push to `main` or start the
+**Deploy to GitHub Pages** workflow manually from the **Actions** tab.
 
 ## License
 
