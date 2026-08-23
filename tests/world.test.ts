@@ -65,10 +65,25 @@ describe("World — rounds & spawning", () => {
   });
 });
 
+describe("World — jumping", () => {
+  it("launches the player off the ground and lands them again", () => {
+    const w = new World();
+    const ground = w.player.footY;
+    w.update(DT, { ...emptyIntent(), jump: true });
+    expect(w.player.vz).toBeGreaterThan(0);
+    expect(w.player.onGround).toBe(false);
+    expect(w.player.footY).toBeGreaterThan(ground);
+
+    for (let i = 0; i < 150; i++) w.update(DT, emptyIntent());
+    expect(w.player.onGround).toBe(true);
+    expect(w.player.footY).toBeCloseTo(ground, 1);
+  });
+});
+
 describe("World — economy interactions", () => {
   it("opens the vault door for 750 points and unlocks region 1", () => {
     const w = new World();
-    w.player.pos = { x: 11, y: 0 }; // beside the door
+    w.player.pos = { x: 25, y: 0 }; // beside the door
     w.player.points = 1000;
     expect(w.map.activeWallBuys().length).toBe(1); // only spawn-room buy live
 
@@ -81,7 +96,7 @@ describe("World — economy interactions", () => {
 
   it("refuses the door when broke", () => {
     const w = new World();
-    w.player.pos = { x: 11, y: 0 };
+    w.player.pos = { x: 25, y: 0 };
     w.player.points = 100;
     w.update(DT, { ...emptyIntent(), interact: true });
     expect(w.map.openedDoors.has("vault-door")).toBe(false);

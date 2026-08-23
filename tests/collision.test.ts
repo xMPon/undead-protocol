@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { rayVsCircle, rayVsRect, resolveCircleRects, nearestWallDist } from "../src/sim/collision";
-import type { WallRect } from "../src/sim/types";
+import {
+  rayVsCircle,
+  rayVsRect,
+  resolveCircleRects,
+  resolveCircleObstacles,
+  supportHeight,
+  nearestWallDist,
+} from "../src/sim/collision";
+import type { WallRect, Obstacle } from "../src/sim/types";
 
 describe("ray vs circle", () => {
   it("hits a circle dead ahead at the near edge", () => {
@@ -55,5 +62,27 @@ describe("circle vs rect resolution", () => {
     const out = resolveCircleRects({ x: 0.2, y: 0.9 }, 0.4, [rect]);
     // Nearest face is the top (maxY=1); pushed above it.
     expect(out.y).toBeCloseTo(1.4, 5);
+  });
+});
+
+describe("height-aware obstacles (jumping)", () => {
+  const crate: Obstacle = { rect: { minX: -0.5, minY: -0.5, maxX: 0.5, maxY: 0.5 }, top: 0.9 };
+
+  it("blocks a grounded entity (feet below the top)", () => {
+    const out = resolveCircleObstacles({ x: 0, y: 0 }, 0.4, 0, [crate]);
+    expect(out.x !== 0 || out.y !== 0).toBe(true); // pushed off the crate
+  });
+
+  it("lets a jumper move across the top", () => {
+    const out = resolveCircleObstacles({ x: 0, y: 0 }, 0.4, 1.2, [crate]);
+    expect(out).toEqual({ x: 0, y: 0 }); // above the crate, unobstructed
+  });
+
+  it("supportHeight rests on the crate top when overhead", () => {
+    expect(supportHeight({ x: 0, y: 0 }, 1.0, 0, [crate])).toBeCloseTo(0.9, 5);
+  });
+
+  it("supportHeight falls back to the ground beside the crate", () => {
+    expect(supportHeight({ x: 2, y: 0 }, 0, 0, [crate])).toBe(0);
   });
 });
