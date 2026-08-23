@@ -19,8 +19,12 @@ npm run dev
 ```
 
 Open the printed URL (default `http://localhost:5173`), click **Deploy**, and
-survive. The published game is available at
-[`https://xMPon.github.io/undead-protocol/`](https://xMPon.github.io/undead-protocol/).
+survive.
+
+> **GitHub Pages:** The repository includes a deployment workflow for
+> [`https://xMPon.github.io/undead-protocol/`](https://xMPon.github.io/undead-protocol/).
+> Configure the repository's Pages source as **GitHub Actions** if the site has
+> not been enabled yet.
 
 ### Controls
 
@@ -55,8 +59,9 @@ survive. The published game is available at
 - **Points economy** — earn on hits and kills; spend on wall-buys and the door.
 - **HUD**, damage feedback, procedural audio, and a local best-round high score.
 
-See [`CLAUDE.md`](CLAUDE.md) for the architecture and the full phase roadmap
-(perks, mystery box, weapon upgrades, dog rounds, boss rounds, easter eggs).
+See [`CLAUDE.md`](CLAUDE.md) for the architecture and [`TODO.md`](TODO.md) for
+the categorized remaining roadmap (perks, mystery box, weapon upgrades, dog
+rounds, boss rounds, easter eggs, and release work).
 
 Roadmap automation uses [`docs/ROADMAP_ITEMS.json`](docs/ROADMAP_ITEMS.json) as
 the source of truth and syncs it to GitHub Project roadmap items via
@@ -81,7 +86,8 @@ is unit-tested in Node — see `tests/world.test.ts`.
 
 GitHub Actions deploys the `dist` build whenever `main` changes. The Vite
 configuration uses `base: "/undead-protocol/"`, which matches this project's
-Pages URL.
+Pages URL. The first deployment may require enabling **GitHub Actions** under
+the repository's Settings → Pages menu.
 
 For the first deployment, open the repository's **Settings → Pages** and set
 **Source** to **GitHub Actions**. After that, push to `main` or start the
