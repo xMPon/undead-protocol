@@ -142,6 +142,14 @@ export class FlowField {
     return null;
   }
 
+  /** Whether the last `compute` goal is actually walkable-from here. Off-grid or
+   *  walled-in positions return false — map tests use this to prove that every
+   *  barrier can still funnel zombies to the player after a props pass. */
+  reachable(p: Vec2): boolean {
+    const [cx, cy] = this.cellOf(p);
+    return this.inBounds(cx, cy) && isFinite(this.dist[this.idx(cx, cy)]);
+  }
+
   /** Steering direction toward the player from a world position. */
   sample(p: Vec2): Vec2 {
     const [cx, cy] = this.cellOf(p);

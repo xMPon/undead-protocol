@@ -5,9 +5,9 @@
 import type { Renderer } from "./Renderer";
 import type { World } from "../sim/World";
 import type { Input } from "../core/Input";
-import type { Intent, GroundKind } from "../sim/types";
+import type { Intent, GroundKind, PropKind } from "../sim/types";
 import { emptyIntent } from "../sim/types";
-import { PROP_SPECS } from "../sim/props";
+import { PROP_SPECS, isSolidProp } from "../sim/props";
 import { getWeapon } from "../data/weapons";
 
 const SCALE = 18; // pixels per world unit
@@ -22,13 +22,8 @@ const GROUND2D: Record<GroundKind, [number, number, number]> = {
   grass: [40, 52, 34],
 };
 
-const PROP2D: Record<string, string> = {
-  crate: "#6b4f2a",
-  barrel: "#6e4a2a",
-  rock: "#565550",
-  sandbag: "#8a7a4a",
-  container: "#3a6a8a",
-};
+/** Kinds whose footprint reads better as a disc than a box. */
+const ROUND_PROPS = new Set<PropKind>(["barrel", "firebarrel", "lamp", "tank", "cone", "deadTree", "floodlight", "antenna"]);
 
 const hex = (n: number): string => "#" + (n & 0xffffff).toString(16).padStart(6, "0");
 const rgba = (n: number, a: number): string => `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
@@ -124,48 +119,125 @@ export class TopDown2D implements Renderer {
   private drawLights(world: World): void {
     // Explicit atmosphere lights.
     for (const L of world.def.lights ?? []) this.glow(L.pos.x, L.pos.y, L.range * 0.5, L.color, 0.5);
-    // Lamps and car headlights emit their own glow.
+    // Diegetic sources: pooled under the fixture, thrown forward if it is aimed.
     for (const p of world.def.props ?? []) {
-      if (p.kind === "lamp") {
-        this.glow(p.pos.x, p.pos.y, 10 * (p.scale ?? 1), p.color ?? PROP_SPECS.lamp.color, 0.5);
-      } else if (p.kind === "car") {
-        const rot = p.rot ?? 0;
-        const dx = Math.cos(rot);
-        const dy = Math.sin(rot);
-        this.glow(p.pos.x + dx * 4, p.pos.y + dy * 4, 7, 0xfff4e0, 0.45);
+      const s = p.scale ?? 1;
+      const dx = Math.cos(p.rot ?? 0);
+      const dy = Math.sin(p.rot ?? 0);
+      switch (p.kind) {
+        case "lamp":
+          this.glow(p.pos.x, p.pos.y, 10 * s, p.color ?? PROP_SPECS.lamp.color, 0.5);
+          break;
+        case "car":
+          this.glow(p.pos.x + dx * 4, p.pos.y + dy * 4, 7, 0xfff4e0, 0.45);
+          break;
+        case "firebarrel":
+          this.glow(p.pos.x, p.pos.y, 6 * s, 0xff8a20, 0.6);
+          break;
+        case "floodlight":
+          this.glow(p.pos.x + dx * 4, p.pos.y + dy * 4, 9 * s, p.color ?? 0xfff0cc, 0.5);
+          break;
+        case "tower":
+          this.glow(p.pos.x + dx * 6, p.pos.y + dy * 6, 13 * s, 0xfff0cc, 0.45);
+          break;
+        case "generator":
+          this.glow(p.pos.x, p.pos.y, 2.2 * s, 0x4cff88, 0.35);
+          break;
+        default:
+          break;
       }
     }
   }
 
   private drawProps(world: World): void {
     const ctx = this.ctx;
-    ctx.strokeStyle = "rgba(0,0,0,0.55)";
     ctx.lineWidth = 0.06;
     for (const p of world.def.props ?? []) {
       const s = p.scale ?? 1;
       const spec = PROP_SPECS[p.kind];
-      const col = p.color !== undefined ? hex(p.color) : PROP2D[p.kind] ?? hex(spec.color);
+      const hx = spec.hx * s;
+      const hy = spec.hy * s;
+      const blocking = isSolidProp(p);
       ctx.save();
       ctx.translate(p.pos.x, p.pos.y);
       ctx.rotate(p.rot ?? 0);
-      ctx.fillStyle = col;
-      if (p.kind === "barrel" || p.kind === "lamp") {
+      // Pass-through dressing is drawn faint, so "solid = cover" stays readable.
+      ctx.globalAlpha = blocking ? 1 : 0.4;
+      ctx.strokeStyle = blocking ? "rgba(0,0,0,0.55)" : "rgba(0,0,0,0.25)";
+      ctx.fillStyle = p.color !== undefined ? hex(p.color) : hex(spec.color);
+
+      if (p.kind === "puddle") {
         ctx.beginPath();
-        ctx.arc(0, 0, spec.hx * s, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, hx, hy, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (ROUND_PROPS.has(p.kind)) {
+        ctx.beginPath();
+        ctx.arc(0, 0, hx, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       } else {
-        const hx = spec.hx * s;
-        const hy = spec.hy * s;
         ctx.fillRect(-hx, -hy, hx * 2, hy * 2);
         ctx.strokeRect(-hx, -hy, hx * 2, hy * 2);
-        // Headlight hint on the car's front face.
-        if (p.kind === "car") {
-          ctx.fillStyle = "#fff4e0";
-          ctx.fillRect(hx - 0.12 * s, -hy, 0.12 * s, hy * 2);
-        }
       }
+
+      this.drawPropDetail(p.kind, hx, hy, s);
       ctx.restore();
+    }
+  }
+
+  /** Per-kind marking drawn in the prop's local frame (+x = its facing). */
+  private drawPropDetail(kind: PropKind, hx: number, hy: number, s: number): void {
+    const ctx = this.ctx;
+    switch (kind) {
+      case "car":
+        ctx.fillStyle = "#fff4e0";
+        ctx.fillRect(hx - 0.12 * s, -hy, 0.12 * s, hy * 2);
+        break;
+      case "firebarrel":
+        ctx.fillStyle = "#ff9a30";
+        ctx.beginPath();
+        ctx.arc(0, 0, hx * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      case "fence":
+        // Chain-link ticks so a fence line reads differently from a wall.
+        ctx.strokeStyle = "rgba(200,210,216,0.5)";
+        ctx.lineWidth = 0.05;
+        ctx.beginPath();
+        for (let t = -hx; t <= hx; t += 0.35) {
+          ctx.moveTo(t, -hy - 0.12);
+          ctx.lineTo(t, hy + 0.12);
+        }
+        ctx.stroke();
+        break;
+      case "tower":
+        ctx.strokeStyle = "rgba(220,226,232,0.55)";
+        ctx.lineWidth = 0.08;
+        ctx.beginPath();
+        ctx.moveTo(-hx, -hy);
+        ctx.lineTo(hx, hy);
+        ctx.moveTo(hx, -hy);
+        ctx.lineTo(-hx, hy);
+        ctx.stroke();
+        break;
+      case "generator":
+        ctx.fillStyle = "#4cff88";
+        ctx.fillRect(hx * 0.4, -0.08, 0.16, 0.16);
+        break;
+      case "concreteBarrier":
+        ctx.fillStyle = "#d8b32a";
+        for (const dx of [-0.6 * s, 0.6 * s]) ctx.fillRect(dx - 0.16 * s, -hy, 0.32 * s, 0.08);
+        break;
+      case "wreck":
+        ctx.strokeStyle = "rgba(200,90,40,0.5)";
+        ctx.lineWidth = 0.07;
+        ctx.beginPath();
+        ctx.moveTo(-hx * 0.6, -hy * 0.6);
+        ctx.lineTo(hx * 0.6, hy * 0.6);
+        ctx.stroke();
+        break;
+      default:
+        break;
     }
   }
 

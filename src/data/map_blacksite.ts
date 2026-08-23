@@ -3,7 +3,15 @@
 // vault yard (region 1) unlocked by a 750-point door. Walls are axis-aligned
 // rectangles with gaps (barriers or the door). The ground has a deep sunken
 // loading bay, a maintenance pit, and raised docks; lighting comes from a warm
-// low sun plus lamp posts and a parked vehicle's headlights.
+// low sun plus lamp posts, vehicle headlights, floodlights, a guard-tower
+// searchlight, and burning drums.
+//
+// The compound is dressed as a working site: a fuel point and generator
+// compound behind chain-link, pipe and pallet stock in the loading bay, a
+// jersey-barrier checkpoint at the vault door, a comms mast and guard tower
+// over the vault yard, and wrecks/rubble/puddles where the fighting has
+// already been. Kinds marked `decor` in PROP_SPECS (cones, signs, puddles) are
+// pass-through, so the dressing never changes how the yard plays.
 //
 // Coordinate note: +x is east, +y is south (screen-down in the 2D view).
 
@@ -69,7 +77,10 @@ export const BLACKSITE: MapDef = {
   // raised dock + platform in the vault yard, over faint asphalt relief.
   terrain: {
     baseHeight: 0,
-    layers: [{ kind: "noise", amplitude: 0.15, wavelength: 8, seed: 1337 }],
+    layers: [
+      { kind: "hills", amplitude: 0.35, wavelength: 26, seed: 77 }, // settled ground
+      { kind: "noise", amplitude: 0.15, wavelength: 8, seed: 1337 }, // asphalt grain
+    ],
     flatZones: [
       { rect: wall(6, -9, 20, 9), height: -3.0, blend: 3.0 }, // sunken loading bay
       { rect: wall(-22, 6, -14, 14), height: -2.0, blend: 1.5 }, // maintenance pit
@@ -147,5 +158,96 @@ export const BLACKSITE: MapDef = {
     { kind: "barrel", pos: { x: 56.6, y: 14.5 }, color: 0x8a2a2a },
     { kind: "lamp", pos: { x: 46, y: 4 } },
     { kind: "car", pos: { x: 58, y: -13 }, rot: 1.4, color: 0x2a3a5a },
+    // --- Spawn yard: motor pool + fuel point (west) ---
+    { kind: "wreck", pos: { x: -14, y: 2 }, rot: 0.5 }, // burnt-out saloon, still smoking
+    { kind: "tank", pos: { x: -23.5, y: -7 } },
+    { kind: "tank", pos: { x: -23.5, y: -4.5 } },
+    { kind: "sign", pos: { x: -22.4, y: -5.8 }, rot: 0 },
+    { kind: "puddle", pos: { x: -10, y: 6 }, scale: 1.3 },
+
+    // --- Spawn yard: maintenance pit (sunken, north-west of the south wall) ---
+    { kind: "pallet", pos: { x: -20, y: 12.5 }, rot: 0.4 },
+    { kind: "rubble", pos: { x: -16.5, y: 12 } },
+    { kind: "puddle", pos: { x: -19, y: 9 }, scale: 1.1 },
+
+    // --- Spawn yard: generator compound (south) ---
+    { kind: "generator", pos: { x: -13, y: 15 } },
+    { kind: "fence", pos: { x: -13, y: 13.2 } },
+    { kind: "fence", pos: { x: -15.4, y: 14.2 }, rot: 1.57 },
+    { kind: "sign", pos: { x: -13, y: 12.4 }, rot: -1.57 },
+    { kind: "dumpster", pos: { x: -6, y: 16.6 } },
+
+    // --- Spawn yard: the sunken loading bay ---
+    { kind: "pipe", pos: { x: 10, y: -4 } },
+    { kind: "pipe", pos: { x: 10, y: -2.6 } },
+    { kind: "pipe", pos: { x: 12.5, y: 2 }, rot: 0.35 },
+    { kind: "pallet", pos: { x: 16, y: -6 }, rot: 0.3 },
+    { kind: "pallet", pos: { x: 17.2, y: -6.4 }, rot: 0.1 },
+    { kind: "pallet", pos: { x: 16.5, y: 5.5 }, rot: -0.2 },
+    { kind: "crate", pos: { x: 18, y: 3 } },
+    { kind: "crate", pos: { x: 18.7, y: 3.6 }, scale: 0.9 },
+    { kind: "rubble", pos: { x: 8, y: 6 } },
+    { kind: "puddle", pos: { x: 13, y: 0 }, scale: 1.2 },
+    { kind: "puddle", pos: { x: 9, y: 4 }, scale: 0.8 },
+    { kind: "cone", pos: { x: 4.5, y: -6 } },
+    { kind: "cone", pos: { x: 4.5, y: -3 } },
+    { kind: "cone", pos: { x: 4.5, y: 0 } },
+    { kind: "floodlight", pos: { x: 4, y: 12.5 }, rot: -0.95 }, // rakes across the bay
+    { kind: "firebarrel", pos: { x: 2.5, y: -10 } },
+    { kind: "pallet", pos: { x: 8, y: -13 }, rot: 0.2 },
+
+    // --- Spawn yard: vault-door checkpoint (east) ---
+    { kind: "concreteBarrier", pos: { x: 24, y: 4 }, rot: 1.57 },
+    { kind: "concreteBarrier", pos: { x: 24, y: -4 }, rot: 1.57 },
+    { kind: "cone", pos: { x: 24.5, y: 1.2 } },
+    { kind: "cone", pos: { x: 24.5, y: -1.2 } },
+    { kind: "rubble", pos: { x: 24, y: -8 } },
+    { kind: "sign", pos: { x: 21, y: -16.6 }, rot: 3.14 },
+    { kind: "cone", pos: { x: -2.5, y: -12 } }, // marking the north breach
+    { kind: "cone", pos: { x: -1, y: -12.5 } },
+
+    // --- Vault yard: guard tower + comms mast ---
+    { kind: "tower", pos: { x: 36.5, y: -14.5 }, rot: 0.99 }, // searchlight over the yard
+    { kind: "antenna", pos: { x: 60, y: -6 } },
+    { kind: "floodlight", pos: { x: 56, y: -3 }, rot: 2.5 },
+    { kind: "tank", pos: { x: 63, y: -9 } },
+    { kind: "tank", pos: { x: 63, y: -11.6 } },
+    { kind: "sign", pos: { x: 54, y: -3.5 }, rot: -1.57 },
+
+    // --- Vault yard: door plant + fenced platform ---
+    { kind: "generator", pos: { x: 28.5, y: 5 } },
+    { kind: "sign", pos: { x: 28.5, y: 6.6 }, rot: -1.57 },
+    { kind: "fence", pos: { x: 39, y: 4 } },
+    { kind: "fence", pos: { x: 42.4, y: 4 } },
+    { kind: "pallet", pos: { x: 42, y: 6.5 }, rot: 0.3 },
+    { kind: "pallet", pos: { x: 43, y: 7 } },
+    { kind: "pipe", pos: { x: 30, y: 8 }, rot: 1.57 },
+    { kind: "pipe", pos: { x: 31.4, y: 8 }, rot: 1.57 },
+    { kind: "dumpster", pos: { x: 34, y: -2 }, rot: 1.57 },
+
+    // --- Vault yard: south-east yard clutter ---
+    { kind: "wreck", pos: { x: 52, y: 14 }, rot: 0.4 },
+    { kind: "concreteBarrier", pos: { x: 61, y: 6 }, rot: 1.57 },
+    { kind: "concreteBarrier", pos: { x: 61, y: 8.2 }, rot: 1.57 },
+    { kind: "rubble", pos: { x: 54, y: 1 } },
+    { kind: "firebarrel", pos: { x: 50, y: 8 } },
+    { kind: "firebarrel", pos: { x: 44, y: -10 } },
+    { kind: "puddle", pos: { x: 48, y: -8 }, scale: 1.2 },
+    { kind: "puddle", pos: { x: 36, y: 16 } },
+    { kind: "cone", pos: { x: 44.6, y: -16 } }, // flanking the vault-north breach
+    { kind: "cone", pos: { x: 47.4, y: -16 } },
+    { kind: "rubble", pos: { x: 41, y: -16.5 } },
+
+    // --- Outside the wire: dead scrub on the approach roads ---
+    { kind: "deadTree", pos: { x: -14, y: -21 } },
+    { kind: "deadTree", pos: { x: 12, y: -21.5 } },
+    { kind: "deadTree", pos: { x: -28.5, y: 9 } },
+    { kind: "deadTree", pos: { x: 68.5, y: 12 } },
+    { kind: "deadTree", pos: { x: 69, y: -14 } },
+  ],
+
+  lights: [
+    // Vault-door status lamp — the one non-diegetic accent on the map.
+    { pos: { x: 26.9, y: 3.6 }, color: 0xff3b30, intensity: 6, range: 10, height: 2.2 },
   ],
 };

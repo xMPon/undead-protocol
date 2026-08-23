@@ -7,6 +7,13 @@
     "details": "Main menu, Blacksite map, dual 3D/2D renderers, core weapons, round system, economy, HUD, game over flow, and procedural audio are complete."
   },
   {
+    "id": "phase-1-environment-detail-pass",
+    "title": "Environment detail pass for Blacksite",
+    "phase": "Phase 1",
+    "status": "done",
+    "details": "Add sixteen prop kinds (fence, jersey barrier, pipe, pallet, dumpster, tank, generator, guard tower, comms mast, floodlight, fire barrel, wreck, rubble, dead tree, cone, sign, puddle), pass-through decor props, volumetric light shafts, lamp flicker, animated fire/smoke/dust/stars, and map data-integrity tests. Dresses Blacksite as a working compound without changing how it plays."
+  },
+  {
     "id": "phase-1-map-select-menu",
     "title": "Ship map-select menu",
     "phase": "Phase 1",

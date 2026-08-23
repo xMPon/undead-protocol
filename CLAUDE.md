@@ -38,7 +38,7 @@ changes nothing about game state.
 | `sim/Player.ts` | transform, `footY`/jump, survival (health/i-frames/regen), points, carried weapons |
 | `sim/Zombie.ts` | undead entity data + `footY`/jump + stuck-timer; damage/death; steering runs in World |
 | `sim/Terrain.ts` | procedural heightfield `heightAt(x,y)` (pure); elevation is visual + entity-Y only |
-| `sim/props.ts` | `PROP_SPECS` — footprint/height/colour per prop kind (shared by collision + both renderers) |
+| `sim/props.ts` | `PROP_SPECS` — footprint/height/colour/`emits`/`decor` per prop kind (shared by collision + both renderers) + `isSolidProp` |
 | `sim/Round.ts` | round state machine + `zombieHealth`/`zombieCount` scaling (pure) |
 | `sim/Spawner.ts` | spawn-cadence gate + interval (pure) |
 | `sim/Weapons.ts` | fire/reload/ammo mechanics on a `WeaponInstance` (pure) |
@@ -47,8 +47,8 @@ changes nothing about game state.
 | `sim/collision.ts` | circle-vs-rect + **height-aware obstacle** resolution, `supportHeight`, ray casts (pure) |
 | `sim/pathing.ts` | BFS flow-field toward the player; zombies sample its gradient |
 | `render/Renderer.ts` | the interface both views implement (`render`/`buildIntent`/…) |
-| `render/ThirdPerson3D.ts` | Three.js view: displaced terrain, sun **shadows** + ACES tone mapping, entity jump lift, prop lights |
-| `render/TopDown2D.ts` | Canvas 2D top-down: terrain hillshade, prop footprints, light glows, jump shadows |
+| `render/ThirdPerson3D.ts` | Three.js view: displaced terrain, sun **shadows** + ACES tone mapping, entity jump lift, the diegetic light rig (lights + haze cones + flicker) and atmosphere (fire, smoke, dust, stars) |
+| `render/TopDown2D.ts` | Canvas 2D top-down: terrain hillshade, prop footprints (dressing drawn faint), light glows, jump shadows |
 | `render/ViewManager.ts` | holds both renderers, keeps one visible, toggles them |
 | `render/procgen.ts` | procedural PBR-ish materials (albedo + **normal maps**), terrain mesh, sky dome, prop meshes — no asset files |
 | `data/weapons.ts` | `WEAPONS` registry (original, non-trademarked designations) |
@@ -95,7 +95,9 @@ shape. The full field-by-field guide, coordinate conventions, prop/terrain/theme
 /light options, region+door progression, and a new-map checklist live in
 [`docs/MAP-AUTHORING.md`](docs/MAP-AUTHORING.md). To add a prop kind: extend
 `PropKind` (`types.ts`), `PROP_SPECS` (`sim/props.ts`), `makePropMesh`
-(`render/procgen.ts`), and the 2D draw (`render/TopDown2D.ts`).
+(`render/procgen.ts`), and the 2D draw (`render/TopDown2D.ts`) — plus
+`addPropFx` (`render/ThirdPerson3D.ts`) if it emits light or animates. Props
+face **local +x along `rot`** in both views; keep new meshes to that convention.
 
 ## Roadmap
 
@@ -110,6 +112,12 @@ shape. The full field-by-field guide, coordinate conventions, prop/terrain/theme
   blast-wall cover, sunken bay + raised docks); diegetic lighting (overhead sun +
   lamp posts + car headlights); real-time shadows + ACES tone mapping + normal-
   mapped materials + gradient sky; `playBounds` player cage; fixed 3D aim.
+  **Environment-detail pass:** 16 more prop kinds (chain-link fence, jersey
+  barriers, pipes, pallets, dumpsters, tanks, generators, a guard tower, a comms
+  mast, floodlights, fire barrels, wrecks, rubble, dead trees, cones, signs,
+  puddles), pass-through `decor` props, fake-volumetric light shafts, lamp
+  flicker, animated fire + smoke + dust + stars, and `tests/map.test.ts` map
+  integrity checks.
   **Remaining:** the four other maps + a map-select menu.
 - **Phase 2:** perks (Ironhide / Rapid Rounds / Fast Hands / Second Wind), the
   Mystery Box ("The Cache"), grenades, ADS, more map regions, board-up barriers.

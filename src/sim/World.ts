@@ -17,7 +17,7 @@ import { Terrain, FLAT_TERRAIN } from "./Terrain";
 import { resolveCircleObstacles, supportHeight, rayVsCircle, nearestWallDist } from "./collision";
 import { canFire, consumeRound, canReload, fireInterval } from "./Weapons";
 import { POINTS_HIT, POINTS_KILL, spend } from "./Economy";
-import { PROP_SPECS, footprintExtents } from "./props";
+import { PROP_SPECS, footprintExtents, isSolidProp } from "./props";
 import { getWeapon } from "../data/weapons";
 import { BLACKSITE } from "../data/map_blacksite";
 import type { MapDef } from "./types";
@@ -98,7 +98,7 @@ export class World {
       if (!this.map.openedDoors.has(d.id)) obs.push({ rect: d.blocks, top: WALL_TOP });
     }
     for (const p of this.def.props ?? []) {
-      if (p.solid === false) continue;
+      if (!isSolidProp(p)) continue;
       const s = p.scale ?? 1;
       const { ex, ey } = footprintExtents(p.kind, s, p.rot ?? 0);
       const rect = { minX: p.pos.x - ex, minY: p.pos.y - ey, maxX: p.pos.x + ex, maxY: p.pos.y + ey };

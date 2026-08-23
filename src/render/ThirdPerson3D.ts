@@ -6,11 +6,21 @@ import * as THREE from "three";
 import type { Renderer } from "./Renderer";
 import type { World } from "../sim/World";
 import type { Input } from "../core/Input";
-import type { Intent, ThemeDef } from "../sim/types";
+import type { Intent, ThemeDef, PropDef } from "../sim/types";
 import { emptyIntent } from "../sim/types";
 import type { Zombie } from "../sim/Zombie";
 import { ZOMBIE_RISE_TIME } from "../sim/Zombie";
-import { wallMaterial, makeLabelSprite, buildTerrainMesh, makePropMesh, makeSkyDome } from "./procgen";
+import {
+  wallMaterial,
+  makeLabelSprite,
+  buildTerrainMesh,
+  makePropMesh,
+  makeSkyDome,
+  makeLightCone,
+  makeDustField,
+  makeStarField,
+  makeSmokePlume,
+} from "./procgen";
 import { getWeapon } from "../data/weapons";
 
 const WALL_H = 2.6;
@@ -39,6 +49,41 @@ interface ZombieMesh {
   head: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
 }
 
+/** A lamp/floodlight the renderer can dim — a third of them flicker on a bad ballast. */
+interface LampFx {
+  light: THREE.PointLight;
+  glow: THREE.MeshStandardMaterial | null;
+  cone: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+  base: number;
+  coneBase: number;
+  phase: number;
+  flickers: boolean;
+}
+
+/** A live fire: light + flame cones, both driven off the same noise. */
+interface FireFx {
+  light: THREE.PointLight;
+  flame: THREE.Object3D;
+  base: number;
+  phase: number;
+}
+
+/** A rising particle column, animated in place with no allocation. */
+interface PlumeFx {
+  pts: THREE.Points;
+  speed: number;
+  height: number;
+  radius: number;
+}
+
+/** Pseudo-noise in [0,1] — three offset sines, cheap and non-repeating enough. */
+function flickerNoise(t: number, phase: number): number {
+  const a = Math.sin(t * 11.3 + phase);
+  const b = Math.sin(t * 23.7 + phase * 2.1);
+  const c = Math.sin(t * 4.1 + phase * 0.7);
+  return (a * 0.5 + b * 0.3 + c * 0.2) * 0.5 + 0.5;
+}
+
 export class ThirdPerson3D implements Renderer {
   readonly name = "3d" as const;
   private canvas!: HTMLCanvasElement;
@@ -57,6 +102,14 @@ export class ThirdPerson3D implements Renderer {
 
   private yaw = 0;
   private pitch = 0.12;
+
+  private time = 0;
+  private lamps: LampFx[] = [];
+  private fires: FireFx[] = [];
+  private beacons: THREE.MeshStandardMaterial[] = [];
+  private plumes: PlumeFx[] = [];
+  private dust: THREE.Points | null = null;
+  private stars: THREE.Points | null = null;
 
   mount(container: HTMLElement): void {
     this.canvas = document.createElement("canvas");
@@ -111,6 +164,8 @@ export class ThirdPerson3D implements Renderer {
     // Gradient dusk sky dome (warm horizon derived from the sun colour).
     const horizon = new THREE.Color(th.dir).lerp(new THREE.Color(th.sky), 0.45).getHex();
     this.scene.add(makeSkyDome(th.sky, horizon));
+    this.stars = makeStarField(360, 280);
+    this.scene.add(this.stars);
 
     // Sun casts shadows sized to the map bounds.
     const mcx = (b.minX + b.maxX) / 2;
@@ -136,6 +191,11 @@ export class ThirdPerson3D implements Renderer {
 
     // Ground: displaced terrain mesh.
     this.scene.add(buildTerrainMesh(b, height, th.ground, 1));
+
+    // Airborne dust — a fixed cloud the camera drags around with it, so a few
+    // hundred motes cover a map of any size.
+    this.dust = makeDustField(320, 64, 9);
+    this.scene.add(this.dust);
 
     // Walls: rooted below the floor so they never float on uneven ground.
     const wallMat = wallMaterial();
@@ -183,29 +243,20 @@ export class ThirdPerson3D implements Renderer {
       this.scene.add(label);
     }
 
-    // Cover props (lamps and cars also cast light).
+    // Cover props, plus the diegetic light rig: every emissive kind gets a real
+    // light, a haze cone, and (for fires) flame + smoke the render loop drives.
     for (const prop of world.def.props ?? []) {
       const scl = prop.scale ?? 1;
       const gy = height(prop.pos.x, prop.pos.y);
+      const rot = prop.rot ?? 0;
       const g = makePropMesh(prop.kind, scl, prop.color);
       g.position.set(prop.pos.x, gy, prop.pos.y);
-      g.rotation.y = prop.rot ?? 0;
+      // Props are authored with local +x pointing along `rot` on the sim plane;
+      // three rotates the opposite way about Y, so negate to keep the 3D and 2D
+      // views showing the same thing (and headlights on the front of the car).
+      g.rotation.y = -rot;
       this.scene.add(g);
-
-      if (prop.kind === "lamp") {
-        const L = new THREE.PointLight(prop.color ?? 0xffe0b0, 16, 30, 2);
-        L.position.set(prop.pos.x, gy + 4.0 * scl, prop.pos.y);
-        this.scene.add(L);
-      } else if (prop.kind === "car") {
-        const rot = prop.rot ?? 0;
-        const dx = Math.cos(rot);
-        const dz = Math.sin(rot);
-        for (const s of [-0.35, 0.35]) {
-          const hl = new THREE.PointLight(0xfff4e0, 12, 26, 2);
-          hl.position.set(prop.pos.x + dx * 1.6 - dz * s, gy + 0.7, prop.pos.y + dz * 1.6 + dx * s);
-          this.scene.add(hl);
-        }
-      }
+      this.addPropFx(prop, g, gy, scl, rot);
     }
 
     // Coloured atmosphere lights (plus a visible glowing source).
@@ -245,6 +296,118 @@ export class ThirdPerson3D implements Renderer {
     gun.castShadow = true;
     this.player.add(gun);
     this.scene.add(this.player);
+  }
+
+  /** Orient a light cone so its narrow end sits at the source and it points `dir`. */
+  private placeBeam(mesh: THREE.Mesh, ox: number, oy: number, oz: number, dir: THREE.Vector3, length: number): void {
+    dir.normalize();
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    mesh.position.set(ox + dir.x * (length / 2), oy + dir.y * (length / 2), oz + dir.z * (length / 2));
+  }
+
+  private addLamp(
+    light: THREE.PointLight,
+    cone: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>,
+    glow: THREE.Object3D | null,
+    flickers: boolean,
+  ): void {
+    this.scene.add(light);
+    this.scene.add(cone);
+    const mat = glow instanceof THREE.Mesh && glow.material instanceof THREE.MeshStandardMaterial ? glow.material : null;
+    this.lamps.push({
+      light,
+      cone,
+      glow: mat,
+      base: light.intensity,
+      coneBase: cone.material.opacity,
+      phase: Math.random() * Math.PI * 2,
+      flickers,
+    });
+  }
+
+  private addPlume(x: number, y: number, z: number, count: number, radius: number, plumeHeight: number, speed: number, color: number): void {
+    const pts = makeSmokePlume(count, radius, plumeHeight, color);
+    pts.position.set(x, y, z);
+    this.scene.add(pts);
+    this.plumes.push({ pts, speed, height: plumeHeight, radius });
+  }
+
+  /** Lights, beams, flames and smoke for one placed prop. */
+  private addPropFx(prop: PropDef, g: THREE.Group, gy: number, scl: number, rot: number): void {
+    const fx = Math.cos(rot);
+    const fz = Math.sin(rot);
+    const glow = g.getObjectByName("glow") ?? null;
+
+    switch (prop.kind) {
+      case "lamp": {
+        const tint = prop.color ?? 0xffe0b0;
+        const hx = prop.pos.x + fx * 0.62 * scl;
+        const hz = prop.pos.y + fz * 0.62 * scl;
+        const hy = gy + 3.88 * scl;
+        const light = new THREE.PointLight(tint, 16, 30, 2);
+        light.position.set(hx, hy, hz);
+        const cone = makeLightCone(0.45 * scl, 3.4 * scl, hy - gy, tint, 0.07);
+        cone.position.set(hx, gy + (hy - gy) / 2, hz);
+        this.addLamp(light, cone, glow, Math.random() < 0.3);
+        break;
+      }
+      case "car": {
+        // One light for the pair — the two glowing lenses sell the rest, and a
+        // forward-rendered scene pays for every extra light on every fragment.
+        const light = new THREE.PointLight(0xfff4e0, 14, 26, 2);
+        light.position.set(prop.pos.x + fx * 1.6, gy + 0.7, prop.pos.y + fz * 1.6);
+        this.scene.add(light);
+        const beam = makeLightCone(2.4 * scl, 0.4 * scl, 10, 0xfff4e0, 0.045);
+        this.placeBeam(beam, prop.pos.x + fx * 1.2, gy + 0.55, prop.pos.y + fz * 1.2, new THREE.Vector3(fx, -0.05, fz), 10);
+        this.scene.add(beam);
+        break;
+      }
+      case "floodlight": {
+        const tint = prop.color ?? 0xfff0cc;
+        const hx = prop.pos.x + fx * 0.24 * scl;
+        const hz = prop.pos.y + fz * 0.24 * scl;
+        const hy = gy + 2.28 * scl;
+        const light = new THREE.PointLight(tint, 22, 34, 2);
+        light.position.set(hx, hy, hz);
+        const beam = makeLightCone(4.0 * scl, 0.45 * scl, 14, tint, 0.05);
+        this.placeBeam(beam, hx, hy, hz, new THREE.Vector3(fx, -0.32, fz), 14);
+        this.addLamp(light, beam, glow, false);
+        break;
+      }
+      case "tower": {
+        const hx = prop.pos.x + fx * 1.0 * scl;
+        const hz = prop.pos.y + fz * 1.0 * scl;
+        const hy = gy + 6.05 * scl;
+        const light = new THREE.PointLight(0xfff0cc, 26, 44, 2);
+        light.position.set(hx, hy, hz);
+        const beam = makeLightCone(6.0 * scl, 0.5 * scl, 20, 0xfff0cc, 0.045);
+        this.placeBeam(beam, hx, hy, hz, new THREE.Vector3(fx, -0.42, fz), 20);
+        this.addLamp(light, beam, glow, false);
+        break;
+      }
+      case "firebarrel": {
+        const light = new THREE.PointLight(0xff8a20, 11, 16, 2);
+        light.position.set(prop.pos.x, gy + 1.3 * scl, prop.pos.y);
+        this.scene.add(light);
+        const flame = g.getObjectByName("flame");
+        if (flame) this.fires.push({ light, flame, base: 11, phase: Math.random() * Math.PI * 2 });
+        this.addPlume(prop.pos.x, gy + 1.7 * scl, prop.pos.y, 26, 0.3, 5.5, 1.1, 0x3a352f);
+        break;
+      }
+      case "wreck": {
+        this.addPlume(prop.pos.x - fx * 0.1, gy + 1.0 * scl, prop.pos.y - fz * 0.1, 22, 0.35, 6.5, 0.7, 0x24221f);
+        break;
+      }
+      case "antenna": {
+        const beacon = g.getObjectByName("beacon");
+        if (beacon instanceof THREE.Mesh && beacon.material instanceof THREE.MeshStandardMaterial) {
+          this.beacons.push(beacon.material);
+        }
+        break;
+      }
+      default:
+        break;
+    }
   }
 
   private makeZombie(): ZombieMesh {
@@ -304,7 +467,70 @@ export class ThirdPerson3D implements Renderer {
     zm.head.material.emissive = e;
   }
 
-  render(world: World, _dt: number): void {
+  /** Advance every animated atmosphere element. Allocation-free. */
+  private updateFx(dt: number): void {
+    const t = this.time;
+
+    for (const lamp of this.lamps) {
+      if (!lamp.flickers) continue;
+      // Mostly-on with occasional dips, rather than a strobe.
+      const n = flickerNoise(t, lamp.phase);
+      const k = n > 0.35 ? 1 : 0.35 + n;
+      lamp.light.intensity = lamp.base * k;
+      lamp.cone.material.opacity = lamp.coneBase * k;
+      if (lamp.glow) lamp.glow.emissiveIntensity = 1.6 * k;
+    }
+
+    for (const fire of this.fires) {
+      const n = flickerNoise(t, fire.phase);
+      fire.light.intensity = fire.base * (0.72 + n * 0.55);
+      fire.flame.scale.set(0.86 + n * 0.28, 0.75 + n * 0.5, 0.86 + n * 0.28);
+      fire.flame.rotation.y = t * 1.7 + fire.phase;
+    }
+
+    for (const beacon of this.beacons) {
+      // Aircraft-warning blink: ~1.4 s period, short bright pulse.
+      const pulse = Math.max(0, Math.sin(t * 4.5));
+      beacon.emissiveIntensity = 0.25 + pulse * pulse * 3.0;
+    }
+
+    for (const plume of this.plumes) {
+      const attr = plume.pts.geometry.attributes.position as THREE.BufferAttribute;
+      const arr = attr.array as Float32Array;
+      for (let i = 0; i < arr.length; i += 3) {
+        arr[i + 1] += plume.speed * dt;
+        arr[i] += Math.sin(t * 0.8 + i) * 0.006;
+        arr[i + 2] += Math.cos(t * 0.6 + i) * 0.006;
+        if (arr[i + 1] > plume.height) {
+          const a = Math.random() * Math.PI * 2;
+          const r = Math.random() * plume.radius;
+          arr[i] = Math.cos(a) * r;
+          arr[i + 1] = 0;
+          arr[i + 2] = Math.sin(a) * r;
+        }
+      }
+      attr.needsUpdate = true;
+    }
+
+    if (this.dust) {
+      // Slow lateral drift; the cloud itself is re-centred on the camera, and
+      // wrapping in the box keeps density even without respawning particles.
+      const attr = this.dust.geometry.attributes.position as THREE.BufferAttribute;
+      const arr = attr.array as Float32Array;
+      const half = 32;
+      for (let i = 0; i < arr.length; i += 3) {
+        arr[i] += (0.35 + Math.sin(t * 0.4 + i) * 0.2) * dt;
+        arr[i + 1] += Math.sin(t * 0.9 + i * 0.3) * 0.05 * dt;
+        if (arr[i] > half) arr[i] -= half * 2;
+      }
+      attr.needsUpdate = true;
+      this.dust.position.set(this.camera.position.x, 0, this.camera.position.z);
+    }
+    if (this.stars) this.stars.position.copy(this.camera.position);
+  }
+
+  render(world: World, dt: number): void {
+    this.time += dt;
     this.buildFromWorld(world);
     if (this.doorMesh) this.doorMesh.visible = !world.map.openedDoors.has("vault-door");
 
@@ -352,6 +578,7 @@ export class ThirdPerson3D implements Renderer {
     this.camera.position.set(camX, camY, camZ);
     this.camera.lookAt(p.pos.x + fx * 4, groundP + 1.4 - this.pitch * 3, p.pos.y + fz * 4);
 
+    this.updateFx(dt);
     this.renderer.render(this.scene, this.camera);
   }
 

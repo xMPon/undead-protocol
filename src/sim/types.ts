@@ -174,7 +174,35 @@ export interface ThemeDef {
 
 // ---- Props ----
 
-export type PropKind = "crate" | "barrel" | "rock" | "sandbag" | "container" | "lamp" | "car";
+export type PropKind =
+  // Cover and clutter.
+  | "crate"
+  | "barrel"
+  | "rock"
+  | "sandbag"
+  | "container"
+  | "pallet"
+  | "pipe"
+  | "dumpster"
+  | "concreteBarrier"
+  | "rubble"
+  | "deadTree"
+  | "wreck"
+  // Compound structure and machinery.
+  | "fence"
+  | "generator"
+  | "tank"
+  | "tower"
+  | "antenna"
+  // Light sources (see `PropSpec.emits`).
+  | "lamp"
+  | "car"
+  | "floodlight"
+  | "firebarrel"
+  // Non-blocking dressing (see `PropSpec.decor`).
+  | "cone"
+  | "sign"
+  | "puddle";
 
 export interface PropDef {
   kind: PropKind;
@@ -182,7 +210,8 @@ export interface PropDef {
   /** Yaw in radians. */
   rot?: number;
   scale?: number;
-  /** Whether it blocks movement/bullets (default true). */
+  /** Whether it blocks movement/bullets. Defaults to the kind's spec (`decor`
+   *  kinds are pass-through, everything else is solid). */
   solid?: boolean;
   /** Optional colour override (hex) — used for crates and containers. */
   color?: number;
