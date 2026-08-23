@@ -58,8 +58,8 @@ export class ViewManager {
   render(world: World, dt: number): void {
     this.active.render(world, dt);
   }
-  buildIntent(world: World, input: Input): Intent {
-    return this.active.buildIntent(world, input);
+  buildIntent(world: World, input: Input, dt: number): Intent {
+    return this.active.buildIntent(world, input, dt);
   }
   currentName(): ViewName {
     return this.active.name;

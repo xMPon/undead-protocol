@@ -18,6 +18,7 @@ export class Hud {
   private prompt: HTMLElement;
   private banner: HTMLElement;
   private viewTag: HTMLElement;
+  private lookHint: HTMLElement;
 
   constructor(parent: HTMLElement) {
     this.crosshair = el("div", "", "crosshair");
@@ -33,6 +34,7 @@ export class Hud {
       <div class="hud-prompt hidden"></div>
       <div class="hud-banner"></div>
       <div class="hud-view-tag">View <b>3D</b> · <span style="color:#7bd651">T</span></div>
+      <div class="hud-lookhint hidden">Click to look around<br><b>Q</b> / <b>E</b> turn &nbsp;·&nbsp; <b>Esc</b> for sensitivity</div>
     `;
 
     parent.appendChild(this.crosshair);
@@ -48,10 +50,11 @@ export class Hud {
     this.healthFill = this.root.querySelector(".fill")!;
     this.prompt = this.root.querySelector(".hud-prompt")!;
     this.banner = this.root.querySelector(".hud-banner")!;
+    this.lookHint = this.root.querySelector(".hud-lookhint")!;
     this.viewTag = this.root.querySelector(".hud-view-tag")!;
   }
 
-  update(world: World, view: ViewName): void {
+  update(world: World, view: ViewName, locked: boolean): void {
     const p = world.player;
 
     if (world.rounds.round === 0) {
@@ -87,6 +90,9 @@ export class Hud {
 
     this.viewTag.innerHTML = `View <b>${view.toUpperCase()}</b> · <span style="color:#7bd651">T</span>`;
     this.crosshair.classList.toggle("hidden", view !== "3d");
+    // Mouse-look needs pointer lock; without it the player can still turn on the
+    // keyboard, so say so rather than leaving them stuck facing one way.
+    this.lookHint.classList.toggle("hidden", !(view === "3d" && !locked));
     this.vignette.style.opacity = String(p.damageFlash * 0.7);
   }
 

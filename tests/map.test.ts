@@ -7,8 +7,10 @@
 import { describe, it, expect } from "vitest";
 import { BLACKSITE } from "../src/data/map_blacksite";
 import { GameMap, INTERACT_RANGE } from "../src/sim/Map";
+import { World } from "../src/sim/World";
+import { resolveCircleObstacles } from "../src/sim/collision";
 import { FlowField } from "../src/sim/pathing";
-import { PROP_SPECS, footprintExtents, isSolidProp } from "../src/sim/props";
+import { PROP_SPECS, footprintExtents, isSolidProp, propColliders } from "../src/sim/props";
 import { getWeapon } from "../src/data/weapons";
 import { Player } from "../src/sim/Player";
 import type { MapDef, PropDef, WallRect } from "../src/sim/types";
@@ -26,6 +28,17 @@ function propRect(p: PropDef): WallRect {
 
 function inflatedContains(r: WallRect, p: Vec2, pad: number): boolean {
   return p.x > r.minX - pad && p.x < r.maxX + pad && p.y > r.minY - pad && p.y < r.maxY + pad;
+}
+
+/** Whether the player cage admits this position (matching World's clamp). */
+function caged(def: MapDef, v: Vec2): boolean {
+  return (def.playBounds ?? []).some(
+    (z) =>
+      v.x >= z.minX + PLAYER_RADIUS &&
+      v.x <= z.maxX - PLAYER_RADIUS &&
+      v.y >= z.minY + PLAYER_RADIUS &&
+      v.y <= z.maxY - PLAYER_RADIUS,
+  );
 }
 
 function solidProps(def: MapDef): PropDef[] {
@@ -88,21 +101,26 @@ describe.each(MAPS)("%s map data", (_name, def) => {
   it("cages the player around everything they have to reach", () => {
     const zones = def.playBounds ?? [];
     expect(zones.length).toBeGreaterThan(0);
-    const caged = (v: Vec2): boolean =>
-      zones.some(
-        (z) =>
-          v.x >= z.minX + PLAYER_RADIUS &&
-          v.x <= z.maxX - PLAYER_RADIUS &&
-          v.y >= z.minY + PLAYER_RADIUS &&
-          v.y <= z.maxY - PLAYER_RADIUS,
-      );
     const mustReach: Array<[string, Vec2]> = [
       ["spawn", def.playerSpawn],
       ...def.wallBuys.map((w) => [`${w.weaponId} buy`, w.pos] as [string, Vec2]),
       ...def.doors.map((d) => [d.id, d.pos] as [string, Vec2]),
     ];
     for (const [what, v] of mustReach) {
-      expect.soft(caged(v), `${what} at ${v.x},${v.y} sits outside playBounds`).toBe(true);
+      expect.soft(caged(def, v), `${what} at ${v.x},${v.y} sits outside playBounds`).toBe(true);
+    }
+  });
+
+  it("keeps every doorway continuously inside the cage", () => {
+    // Connected cage rects must overlap by more than the player diameter. If they
+    // only touch, the doorway is a band neither rect accepts and the clamp pins
+    // the player on the near side of a door they just paid for.
+    for (const d of def.doors) {
+      const acrossX = d.blocks.maxX - d.blocks.minX < d.blocks.maxY - d.blocks.minY;
+      for (let t = -2.5; t <= 2.5; t += 0.1) {
+        const v = acrossX ? { x: d.pos.x + t, y: d.pos.y } : { x: d.pos.x, y: d.pos.y + t };
+        expect.soft(caged(def, v), `${d.id} doorway breaks at ${v.x.toFixed(1)},${v.y.toFixed(1)}`).toBe(true);
+      }
     }
   });
 
@@ -123,9 +141,23 @@ describe.each(MAPS)("%s map data", (_name, def) => {
     }
   });
 
-  it("only feeds solid props into collision", () => {
+  it("feeds one collision rect per solid collider and nothing for dressing", () => {
     const map = new GameMap(def);
-    expect(map.walls.length).toBe(def.walls.length + def.doors.length + solidProps(def).length);
+    const pieces = solidProps(def).reduce((n, p) => n + propColliders(p).length, 0);
+    expect(map.walls.length).toBe(def.walls.length + def.doors.length + pieces);
+  });
+
+  it("leaves the space under a multi-part prop walkable", () => {
+    // A guard tower is four legs. Standing dead centre under it has to be legal,
+    // or it reads as an invisible wall in the middle of open ground.
+    const world = new World(def);
+    for (const p of def.props ?? []) {
+      if (!PROP_SPECS[p.kind].parts) continue;
+      const moved = resolveCircleObstacles(p.pos, world.player.radius, world.terrain.heightAt(p.pos.x, p.pos.y), world.obstacles);
+      expect
+        .soft(Math.hypot(moved.x - p.pos.x, moved.y - p.pos.y), `${p.kind} at ${p.pos.x},${p.pos.y} blocks its own centre`)
+        .toBeLessThan(0.01);
+    }
   });
 
   it("names weapons that exist and puts every buy in interaction range of its region", () => {

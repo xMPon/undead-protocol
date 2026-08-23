@@ -101,7 +101,7 @@ const loop = new Loop((dt) => {
     // Re-acquire pointer lock on click in the 3D view.
     if (vm.currentName() === "3d" && !input.locked && input.left) input.requestLock();
 
-    const intent = vm.buildIntent(world, input);
+    const intent = vm.buildIntent(world, input, dt);
     world.update(dt, intent);
 
     groanTimer -= dt;
@@ -115,7 +115,7 @@ const loop = new Loop((dt) => {
   }
 
   vm.render(world, dt);
-  if (state !== "menu") hud.update(world, vm.currentName());
+  if (state !== "menu") hud.update(world, vm.currentName(), input.locked);
   input.endFrame();
 });
 loop.start();

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   clampToZones,
+  pointInObstacle,
   rayVsCircle,
   rayVsRect,
   resolveCircleRects,
@@ -116,5 +117,53 @@ describe("clampToZones", () => {
     // shortest way back in is sideways into `south`, and that is what it picks —
     // this only ever fires as a backstop, since walls stop the player first.
     expect(clampToZones({ x: 1, y: 20 }, R, [north, south])).toEqual({ x: 4.5, y: 20 });
+  });
+});
+
+describe("shaped obstacles", () => {
+  const TALL = 1000;
+  // A 4x1 box turned 45 degrees. Its AABB corners stick out ~1.06 units past the
+  // real box — that overhang is exactly what used to snag the player.
+  const spun = {
+    rect: { minX: -1.77, minY: -1.77, maxX: 1.77, maxY: 1.77 },
+    top: TALL,
+    rot: Math.PI / 4,
+    half: { x: 2, y: 0.5 },
+  };
+
+  it("lets a circle sit in the corner an AABB would have claimed", () => {
+    const corner = { x: 1.5, y: -1.5 }; // inside the AABB, well clear of the real box
+    expect(pointInObstacle(corner.x, corner.y, spun)).toBe(false);
+    const out = resolveCircleObstacles(corner, 0.3, 0, [spun]);
+    expect(out).toEqual(corner);
+  });
+
+  it("still ejects a circle that is inside the turned box", () => {
+    const out = resolveCircleObstacles({ x: 0.2, y: 0.2 }, 0.3, 0, [spun]);
+    // Pushed out across the box's short axis, which points north-west.
+    expect(Math.hypot(out.x, out.y)).toBeGreaterThan(0.7);
+    expect(pointInObstacle(out.x, out.y, spun)).toBe(false);
+  });
+
+  it("resolves round obstacles as discs, not squares", () => {
+    const drum = { rect: { minX: -0.4, minY: -0.4, maxX: 0.4, maxY: 0.4 }, top: TALL, radius: 0.4 };
+    // Diagonally out at the box corner: inside the square, outside the disc.
+    const atCorner = { x: 0.38, y: 0.38 };
+    expect(pointInObstacle(atCorner.x, atCorner.y, drum)).toBe(false);
+    const touching = resolveCircleObstacles({ x: 0.5, y: 0 }, 0.3, 0, [drum]);
+    expect(touching.x).toBeCloseTo(0.7, 6); // pushed to exactly radius + radius
+    expect(touching.y).toBeCloseTo(0, 6);
+  });
+
+  it("ignores obstacles the feet are already above", () => {
+    const lowCrate = { rect: { minX: -0.5, minY: -0.5, maxX: 0.5, maxY: 0.5 }, top: 0.9 };
+    expect(resolveCircleObstacles({ x: 0, y: 0 }, 0.3, 2, [lowCrate])).toEqual({ x: 0, y: 0 });
+  });
+
+  it("only supports a jumper over the real shape", () => {
+    const drum = { rect: { minX: -0.4, minY: -0.4, maxX: 0.4, maxY: 0.4 }, top: 0.95, radius: 0.4 };
+    expect(supportHeight({ x: 0, y: 0 }, 1.0, 0, [drum])).toBeCloseTo(0.95, 6);
+    // The corner of its bounding box is thin air.
+    expect(supportHeight({ x: 0.38, y: 0.38 }, 1.0, 0, [drum])).toBe(0);
   });
 });

@@ -68,11 +68,18 @@ pour through those gaps while the player cannot follow.
 
 The player may stand anywhere in the **union**, so a compound with wings lists
 one rect per wing, each sitting just inside that perimeter wall.
-**Connected rects must overlap across their shared doorway** (the southern wings
-of Blacksite start at `y = 17.0`, a unit north of the `y = 18` wall they hang
-off) - otherwise stepping into the doorway is briefly "outside every zone" and
-the clamp yanks the player back. Outside every zone, the player is pulled to the
-nearest point of the nearest rect.
+**Connected rects must overlap across their shared doorway by more than the
+player diameter (0.9).** Each rect is inset by the player radius before the
+clamp, so two rects that merely touch leave a band neither of them accepts - and
+the player cannot walk through that door at all, no matter what they paid for it.
+The southern wings of Blacksite reach 1.4 units back into the yards for this
+reason. Outside every zone the player is pulled to the nearest point of the
+nearest rect.
+
+Put each rect on the **inner wall faces** (Blacksite's yards are exactly
+`x[-26, 66] y[-18, 18]`), not inset from them: the walls already stop the player,
+so an inset just adds an invisible kerb along every wall in the map. The cage
+only needs to bite at the barrier gaps.
 
 Do not just take the bounding box of the whole map: the only job of the cage is
 to cover the floor the player is allowed on and *nothing else*.
@@ -152,6 +159,12 @@ Both views agree, so `rot: 0` always means "aimed east".
 **Solidity:** most kinds block movement and bullets and are **jumpable** up to
 their height. Kinds marked *decor* are pass-through dressing; `solid: true` /
 `solid: false` overrides either default on a single placement.
+
+**Shape:** a prop collides as what you can see it to be. Rotated props are
+oriented boxes, not bounding boxes; kinds marked *round* in `PROP_SPECS` collide
+as discs; and a kind with `parts` collides as those pieces, which is why you can
+walk between the legs of a `tower`. All of it comes out of `propColliders`, so
+adding a kind means describing its shape there once rather than in each consumer.
 
 | kind | footprint | height | notes |
 |---|---|---|---|
@@ -233,7 +246,7 @@ it.
 - [ ] Props avoid the spawn point and barrier gaps.
 - [ ] Solid props leave every interaction point (wall-buys, doors) reachable.
 - [ ] Fences and barrier lines leave a walkable gap — they are solid.
-- [ ] Every wing has its own `playBounds` rect, overlapping its neighbour at the doorway.
+- [ ] Every wing has its own `playBounds` rect, on the inner wall faces, overlapping its neighbour by >0.9 at the doorway.
 - [ ] Every region a door unlocks has at least one barrier and one wall-buy.
 - [ ] No solid prop is buried in a wall.
 

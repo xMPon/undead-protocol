@@ -21,6 +21,13 @@
     "details": "Extend Blacksite from two regions to four: a substation opening off the spawn yard for 1000 points and a cold store behind the vault for 1250, each with its own barriers, terrain, dressing and wall-buy (Lancer-7 and Havoc-9). Makes playBounds a union of per-wing rects, names doors in the HUD prompt, renders a mesh per door, and pools the 3D point lights so room count no longer drives GPU cost."
   },
   {
+    "id": "phase-1-controls-and-collision-feel",
+    "title": "Fix movement, camera, and collision feel",
+    "phase": "Phase 1",
+    "status": "done",
+    "details": "Address playtest feedback: rotated props now collide as oriented boxes and round props as discs so bounding-box corners stop acting as invisible walls; multi-part props such as the guard tower collide as their legs; the chase camera pulls in and fades the player when geometry is behind them; keyboard turning (Q/E and arrows) plus persisted look-sensitivity, turn-speed and invert-Y settings in the pause menu make the game playable on a trackpad. Also fixes a player cage whose wing rects did not overlap, which made the substation and cold store doors impassable."
+  },
+  {
     "id": "phase-1-map-select-menu",
     "title": "Ship map-select menu",
     "phase": "Phase 1",

@@ -22,9 +22,19 @@ import {
   makeSmokePlume,
 } from "./procgen";
 import { getWeapon } from "../data/weapons";
+import { settings } from "../persist/Store";
+import { rayVsRect } from "../sim/collision";
 
 const WALL_H = 2.6;
 const LOOK_SENS = 0.0022;
+/** Radians per second for keyboard turning (Q/E, arrows) at turnSpeed 1. */
+const TURN_RATE = 2.4;
+/** How far behind the player the camera sits when nothing is in the way. */
+const CAM_DIST = 6.2;
+/** Never let the camera get closer than this, even in a corner. */
+const CAM_MIN = 1.5;
+/** Clearance kept between the camera and whatever it backed off. */
+const CAM_PAD = 0.45;
 /** Real point lights kept alive at once; the rest of the map's fixtures glow only. */
 const LIGHT_POOL = 14;
 
@@ -109,6 +119,9 @@ export class ThirdPerson3D implements Renderer {
 
   private yaw = 0;
   private pitch = 0.12;
+  /** Player body materials, faded out when the camera is forced in close. */
+  private playerMats: THREE.MeshStandardMaterial[] = [];
+  private camDist = CAM_DIST;
 
   private time = 0;
   private emitters: Emitter[] = [];
@@ -294,22 +307,25 @@ export class ThirdPerson3D implements Renderer {
     this.player = new THREE.Group();
     const torso = new THREE.Mesh(
       new THREE.CapsuleGeometry(0.32, 0.9, 6, 12),
-      new THREE.MeshStandardMaterial({ color: 0x33465c, roughness: 0.55, metalness: 0.25 }),
+      new THREE.MeshStandardMaterial({ color: 0x33465c, roughness: 0.55, metalness: 0.25, transparent: true }),
     );
+    this.playerMats.push(torso.material);
     torso.position.y = 1.0;
     torso.castShadow = true;
     this.player.add(torso);
     const head = new THREE.Mesh(
       new THREE.SphereGeometry(0.26, 16, 12),
-      new THREE.MeshStandardMaterial({ color: 0xc7a488, roughness: 0.7 }),
+      new THREE.MeshStandardMaterial({ color: 0xc7a488, roughness: 0.7, transparent: true }),
     );
+    this.playerMats.push(head.material);
     head.position.y = 1.7;
     head.castShadow = true;
     this.player.add(head);
     const gun = new THREE.Mesh(
       new THREE.BoxGeometry(0.16, 0.16, 0.9),
-      new THREE.MeshStandardMaterial({ color: 0x0e0e10, roughness: 0.4, metalness: 0.7 }),
+      new THREE.MeshStandardMaterial({ color: 0x0e0e10, roughness: 0.4, metalness: 0.7, transparent: true }),
     );
+    this.playerMats.push(gun.material);
     gun.position.set(0.25, 1.2, 0.5);
     gun.castShadow = true;
     this.player.add(gun);
@@ -463,6 +479,27 @@ export class ThirdPerson3D implements Renderer {
       light.distance = e.range;
       light.intensity = e.live;
     }
+  }
+
+  /**
+   * How far the camera can sit behind the player before something solid gets in
+   * the way. Casts the sim's own obstacle rects on the ground plane and keeps
+   * only those tall enough to actually occlude — a crate at knee height should
+   * not yank the camera in.
+   */
+  private clearCameraDist(world: World, px: number, pz: number, dx: number, dz: number): number {
+    let best = CAM_DIST;
+    const eye = world.player.footY + 1.6;
+    for (const o of world.obstacles) {
+      if (o.top < eye) continue; // low enough for the camera to look over
+      // Posts, masts and trees are too thin to hide anything; pulling in for them
+      // would make the camera twitch every time one swept past behind the player.
+      if (o.rect.maxX - o.rect.minX < 0.7 && o.rect.maxY - o.rect.minY < 0.7) continue;
+      const t = rayVsRect(px, pz, dx, dz, o.rect);
+      if (t === null || t >= best) continue;
+      best = t;
+    }
+    return Math.max(CAM_MIN, best - CAM_PAD);
   }
 
   private makeZombie(): ZombieMesh {
@@ -630,12 +667,24 @@ export class ThirdPerson3D implements Renderer {
     // Chase camera centred directly behind the player so the crosshair aligns
     // with the bullet path (firing goes along `aim` from the player position —
     // any lateral camera offset would make centred targets shoot off to the side).
-    const camDist = 6.2;
-    const camX = p.pos.x - fx * camDist;
-    const camZ = p.pos.y - fz * camDist;
-    const camY = groundP + 3.3 + this.pitch * 3.5;
+    // It pulls in when something solid is behind the player, so backing into a
+    // wall no longer puts the geometry between the camera and the character.
+    const want = this.clearCameraDist(world, p.pos.x, p.pos.y, -fx, -fz);
+    // Ease outward, snap inward: popping out into a wall looks far worse than a
+    // quick recovery once the player steps clear of it.
+    this.camDist = want < this.camDist ? want : Math.min(want, this.camDist + dt * 9);
+    const camX = p.pos.x - fx * this.camDist;
+    const camZ = p.pos.y - fz * this.camDist;
+    const camY = groundP + (0.9 + (this.camDist / CAM_DIST) * 2.4) + this.pitch * 3.5;
     this.camera.position.set(camX, camY, camZ);
     this.camera.lookAt(p.pos.x + fx * 4, groundP + 1.4 - this.pitch * 3, p.pos.y + fz * 4);
+
+    // Dissolve the player once the camera is close enough to be inside them. The
+    // materials are created transparent and only their opacity moves — toggling
+    // `transparent` per frame would recompile the shader every time.
+    const fade = Math.max(0, Math.min(1, (this.camDist - CAM_MIN) / 1.8));
+    for (const m of this.playerMats) m.opacity = fade;
+    this.player.visible = fade > 0.02;
 
     this.updateFx(dt);
     // Light the player's surroundings, not the camera's — the camera trails them.
@@ -643,9 +692,20 @@ export class ThirdPerson3D implements Renderer {
     this.renderer.render(this.scene, this.camera);
   }
 
-  buildIntent(_world: World, input: Input): Intent {
-    this.yaw += input.mouseDX * LOOK_SENS;
-    this.pitch = Math.max(-0.5, Math.min(0.8, this.pitch + input.mouseDY * LOOK_SENS));
+  buildIntent(_world: World, input: Input, dt: number): Intent {
+    // Mouse look, scaled by the player's sensitivity setting.
+    const sens = LOOK_SENS * settings.lookSensitivity;
+    const invert = settings.invertY ? -1 : 1;
+    this.yaw += input.mouseDX * sens;
+    this.pitch = Math.max(-0.5, Math.min(0.8, this.pitch + input.mouseDY * sens * invert));
+
+    // Keyboard turning. Essential on a trackpad, where there is not enough travel
+    // to spin round, and it leaves the mouse free to keep firing.
+    const turn = TURN_RATE * settings.turnSpeed * dt;
+    if (input.isDown("KeyQ") || input.isDown("ArrowLeft")) this.yaw -= turn;
+    if (input.isDown("KeyE") || input.isDown("ArrowRight")) this.yaw += turn;
+    if (input.isDown("ArrowUp")) this.pitch = Math.max(-0.5, this.pitch - turn * 0.5 * invert);
+    if (input.isDown("ArrowDown")) this.pitch = Math.min(0.8, this.pitch + turn * 0.5 * invert);
 
     const fx = Math.cos(this.yaw);
     const fy = Math.sin(this.yaw);

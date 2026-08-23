@@ -34,7 +34,7 @@ Remaining work, grouped by area. Items are ordered roughly by dependency and pla
 
 ## Accessibility and meta
 
-- [ ] Add difficulty settings and gameplay/audio controls.
+- [ ] Add difficulty settings and audio controls. *(Look sensitivity, turn speed and invert-Y already live in the pause menu.)*
 - [ ] Add local or server-backed leaderboards with validation and privacy considerations.
 - [ ] Add a browser support note covering WebGL, pointer lock, and WebAudio.
 - [ ] Add screenshots or a short gameplay capture to the README.

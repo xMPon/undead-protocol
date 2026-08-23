@@ -25,12 +25,15 @@ export const BLACKSITE: MapDef = {
   bounds: wall(-30, -22, 71, 45),
   playerSpawn: { x: 0, y: 0 },
   startRegions: [0],
-  // One cage rect per wing. The southern two overlap the yards by 0.6 across
-  // their doorways, so walking through a door is never briefly "outside".
+  // One cage rect per wing, on the *inner wall faces* so the walls do the
+  // stopping and the cage only bites at the barrier gaps. The southern wings
+  // reach 1.4 units back into the yards: connected rects have to overlap by more
+  // than the player diameter, or the doorway between them is a dead band that
+  // neither rect accepts and the player cannot walk through at all.
   playBounds: [
-    wall(-25.6, -17.6, 65.6, 17.6), // spawn yard + vault yard
-    wall(4.4, 17.0, 29.0, 39.6), // substation
-    wall(30.4, 17.0, 57.6, 39.6), // cold store
+    wall(-26, -18, 66, 18), // spawn yard + vault yard
+    wall(4, 16.6, 29.4, 40), // substation
+    wall(30, 16.6, 58, 40), // cold store
   ],
 
   walls: [

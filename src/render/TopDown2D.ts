@@ -388,7 +388,7 @@ export class TopDown2D implements Renderer {
     ctx.stroke();
   }
 
-  buildIntent(world: World, input: Input): Intent {
+  buildIntent(world: World, input: Input, _dt: number): Intent {
     const intent = emptyIntent();
     let mx = 0;
     let my = 0;

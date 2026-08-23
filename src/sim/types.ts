@@ -70,11 +70,25 @@ export interface WallRect {
   maxY: number;
 }
 
-/** A solid rectangle with a top height (absolute) — used for height-aware
- *  movement so entities can jump onto low obstacles but not through tall ones. */
+/**
+ * A solid the world collides against, with a top height (absolute) so entities
+ * can jump onto low obstacles but not through tall ones.
+ *
+ * `rect` is always the world AABB — broadphase and the collider itself for the
+ * common axis-aligned case. A rotated prop additionally carries `rot`/`half` so
+ * it collides as the box you can actually see rather than its bounding box, and
+ * a round one carries `radius`. Getting this wrong is what an invisible wall
+ * feels like, so props build these through `propColliders`.
+ */
 export interface Obstacle {
   rect: WallRect;
   top: number;
+  /** Yaw of the true oriented box about the centre of `rect`. */
+  rot?: number;
+  /** Unrotated half extents of that oriented box. Required whenever `rot` is set. */
+  half?: Vec2;
+  /** Disc collider centred on `rect`, used instead of the box. */
+  radius?: number;
 }
 
 /** A boarded window where zombies breach into a room. */

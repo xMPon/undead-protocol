@@ -94,6 +94,17 @@ describe("World — economy interactions", () => {
     expect(w.map.activeWallBuys().length).toBe(3); // vault buys now live
   });
 
+  it("lets the player walk through a door they paid for", () => {
+    const w = new World();
+    w.player.pos = { x: 13, y: 16.6 }; // just north of the substation door
+    w.player.points = 5000;
+    w.update(DT, { ...emptyIntent(), interact: true });
+    expect(w.map.openedDoors.has("substation-door")).toBe(true);
+
+    step(w, 1.0, { ...emptyIntent(), move: { x: 0, y: 1 } }); // walk south, into the room
+    expect(w.player.pos.y).toBeGreaterThan(20);
+  });
+
   it("refuses the door when broke", () => {
     const w = new World();
     w.player.pos = { x: 25, y: 0 };

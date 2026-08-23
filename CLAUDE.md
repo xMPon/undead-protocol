@@ -38,13 +38,13 @@ changes nothing about game state.
 | `sim/Player.ts` | transform, `footY`/jump, survival (health/i-frames/regen), points, carried weapons |
 | `sim/Zombie.ts` | undead entity data + `footY`/jump + stuck-timer; damage/death; steering runs in World |
 | `sim/Terrain.ts` | procedural heightfield `heightAt(x,y)` (pure); elevation is visual + entity-Y only |
-| `sim/props.ts` | `PROP_SPECS` — footprint/height/colour/`emits`/`decor` per prop kind (shared by collision + both renderers) + `isSolidProp` |
+| `sim/props.ts` | `PROP_SPECS` — footprint/height/colour/`emits`/`decor`/`round`/`parts` per prop kind + `isSolidProp` and `propColliders` (the one source of a prop's solids, for collision *and* the flow field) |
 | `sim/Round.ts` | round state machine + `zombieHealth`/`zombieCount` scaling (pure) |
 | `sim/Spawner.ts` | spawn-cadence gate + interval (pure) |
 | `sim/Weapons.ts` | fire/reload/ammo mechanics on a `WeaponInstance` (pure) |
 | `sim/Economy.ts` | points award/spend rules (pure) |
 | `sim/Map.ts` | runtime map: door/region state + current collision walls (incl. solid props) |
-| `sim/collision.ts` | circle-vs-rect + **height-aware obstacle** resolution, `supportHeight`, ray casts, `clampToZones` player cage (pure) |
+| `sim/collision.ts` | circle vs rect/**oriented box**/disc + **height-aware obstacle** resolution, `supportHeight`, ray casts, `clampToZones` player cage (pure) |
 | `sim/pathing.ts` | BFS flow-field toward the player; zombies sample its gradient |
 | `render/Renderer.ts` | the interface both views implement (`render`/`buildIntent`/…) |
 | `render/ThirdPerson3D.ts` | Three.js view: displaced terrain, sun **shadows** + ACES tone mapping, entity jump lift, the diegetic light rig (a fixed 14-light pool handed to the nearest fixtures + haze cones + flicker) and atmosphere (fire, smoke, dust, stars) |
@@ -57,7 +57,7 @@ changes nothing about game state.
 | `ui/Hud.ts` | round/points/health/ammo/prompt/banner + damage vignette (DOM) |
 | `ui/Menu.ts` | main menu (`Menu`) + pause overlay (`PauseMenu`) |
 | `ui/GameOver.ts` | death screen: round reached, best, restart/menu |
-| `persist/Store.ts` | localStorage best-round high score |
+| `persist/Store.ts` | localStorage best-round high score + persisted control `settings` (look sensitivity, turn speed, invert Y) |
 | `main.ts` | bootstrap + menu→playing→paused/over state machine; `window.__up` |
 
 ## Conventions
@@ -83,6 +83,10 @@ changes nothing about game state.
   the tab is backgrounded the RAF loop throttles, so verify the sim headlessly:
   loop `world.update(dt, intent)` and read `world.zombies`, `world.player`,
   `world.rounds`, `world.kills` directly.
+- **A prop's solids come from `propColliders`.** Collision obstacles and
+  flow-field walls are both built from it, so what blocks the player, what blocks
+  a zombie, and what you can see can never drift apart. Never re-derive a
+  footprint by hand — an inflated bounding box is what an "invisible wall" is.
 - **Elevation is cosmetic to gameplay.** `Terrain.heightAt` and jump `footY`
   drive where things are *drawn* and height-aware obstacle mounting, but
   movement/collision resolve in 2D — so the sim stays deterministic and testable.
@@ -122,6 +126,12 @@ face **local +x along `rot`** in both views; keep new meshes to that convention.
   (1250, behind the vault), each with barriers, terrain, dressing and a wall-buy
   (Lancer-7 and Havoc-9); `playBounds` is a union of per-wing rects so a compound
   no longer has to be one box; doors are named in the prompt and get a mesh each.
+  **Controls and collision pass:** rotated props collide as oriented boxes and
+  round ones as discs (no more bounding-box snags), multi-part props like the
+  guard tower collide as their legs so you can walk under them, the chase camera
+  pulls in and fades the player when something solid is behind them, and
+  keyboard turning (Q/E, arrows) plus a persisted sensitivity/turn-speed setting
+  in the pause menu make the game playable on a trackpad.
   **Remaining:** the four other maps + a map-select menu.
 - **Phase 2:** perks (Ironhide / Rapid Rounds / Fast Hands / Second Wind), the
   Mystery Box ("The Cache"), grenades, ADS, more map regions, board-up barriers.

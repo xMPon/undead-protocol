@@ -3,17 +3,20 @@
 // spawn into; both are always available via the T key in-game.
 
 import type { ViewName } from "../render/ViewManager";
+import { settings, updateSettings, DEFAULT_SETTINGS } from "../persist/Store";
 
 const CONTROLS: Array<[string, string]> = [
   ["Move", "W A S D"],
   ["Aim", "Mouse"],
+  ["Turn", "Q / E or \u2190 \u2192"],
   ["Fire", "Left Click"],
   ["Reload", "R"],
   ["Weapons", "1 / 2"],
   ["Buy / Open", "F"],
   ["Sprint", "Shift"],
+  ["Jump", "Space"],
   ["Toggle View", "T"],
-  ["Pause", "Esc"],
+  ["Pause / Settings", "Esc"],
 ];
 
 export class Menu {
@@ -65,6 +68,11 @@ export class Menu {
   }
 }
 
+/**
+ * Pause overlay, which doubles as the settings screen. Look sensitivity and turn
+ * speed live here because they are the two things a player on a trackpad has to
+ * change before the game is playable at all, and they persist via Store.
+ */
 export class PauseMenu {
   readonly el: HTMLDivElement;
   onResume?: () => void;
@@ -75,17 +83,60 @@ export class PauseMenu {
     this.el.className = "overlay hidden";
     this.el.innerHTML = `
       <h1>PAUSED</h1>
+      <div class="settings">
+        <label>
+          <span>Look sensitivity <b data-out="lookSensitivity"></b></span>
+          <input type="range" data-set="lookSensitivity" min="0.2" max="4" step="0.1">
+        </label>
+        <label>
+          <span>Turn speed (Q / E) <b data-out="turnSpeed"></b></span>
+          <input type="range" data-set="turnSpeed" min="0.2" max="4" step="0.1">
+        </label>
+        <label class="row">
+          <span>Invert look Y</span>
+          <input type="checkbox" data-set="invertY">
+        </label>
+      </div>
       <div class="menu-btns">
         <button class="btn" data-resume>Resume</button>
+        <button class="btn secondary" data-reset>Reset Controls</button>
         <button class="btn secondary" data-quit>Return to Menu</button>
       </div>
+      <div class="credit">Trackpad? Turn with <b>Q</b> / <b>E</b> and push sensitivity up.</div>
     `;
     parent.appendChild(this.el);
     this.el.querySelector("[data-resume]")!.addEventListener("click", () => this.onResume?.());
     this.el.querySelector("[data-quit]")!.addEventListener("click", () => this.onQuit?.());
+    this.el.querySelector("[data-reset]")!.addEventListener("click", () => {
+      updateSettings({ ...DEFAULT_SETTINGS });
+      this.syncControls();
+    });
+
+    for (const input of this.el.querySelectorAll<HTMLInputElement>("[data-set]")) {
+      input.addEventListener("input", () => {
+        const key = input.dataset.set as "lookSensitivity" | "turnSpeed" | "invertY";
+        updateSettings(key === "invertY" ? { invertY: input.checked } : { [key]: Number(input.value) });
+        this.syncControls();
+      });
+    }
+    this.syncControls();
+  }
+
+  /** Push the live settings back into the widgets (also used after a reset). */
+  private syncControls(): void {
+    for (const input of this.el.querySelectorAll<HTMLInputElement>("[data-set]")) {
+      const key = input.dataset.set as "lookSensitivity" | "turnSpeed" | "invertY";
+      if (key === "invertY") input.checked = settings.invertY;
+      else input.value = String(settings[key]);
+    }
+    for (const out of this.el.querySelectorAll<HTMLElement>("[data-out]")) {
+      const key = out.dataset.out as "lookSensitivity" | "turnSpeed";
+      out.textContent = `${settings[key].toFixed(1)}x`;
+    }
   }
 
   show(): void {
+    this.syncControls();
     this.el.classList.remove("hidden");
   }
   hide(): void {

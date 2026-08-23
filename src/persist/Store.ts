@@ -1,7 +1,23 @@
-// Tiny persistence: the best round reached, in localStorage. Phase 1 only needs
-// a high score; later phases can extend this to settings/loadouts.
+// Tiny persistence: the best round reached and the handful of control settings,
+// in localStorage. Reads are defensive — a wiped or hand-edited value must never
+// take the game down.
 
 const KEY = "undead-protocol:best-round";
+const SETTINGS_KEY = "undead-protocol:settings";
+
+/** Player-tunable controls. Multipliers are relative to the built-in defaults. */
+export interface Settings {
+  /** Mouse-look multiplier. Low trackpad travel wants this well above 1. */
+  lookSensitivity: number;
+  /** Keyboard turn-rate multiplier (Q/E and the arrow keys). */
+  turnSpeed: number;
+  invertY: boolean;
+}
+
+export const DEFAULT_SETTINGS: Settings = { lookSensitivity: 1, turnSpeed: 1, invertY: false };
+
+const clampNum = (v: unknown, lo: number, hi: number, fallback: number): number =>
+  typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : fallback;
 
 export const Store = {
   getBest(): number {
@@ -18,4 +34,34 @@ export const Store = {
     }
     return best;
   },
+
+  getSettings(): Settings {
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      if (!raw) return { ...DEFAULT_SETTINGS };
+      const parsed = JSON.parse(raw) as Partial<Settings>;
+      return {
+        lookSensitivity: clampNum(parsed.lookSensitivity, 0.2, 4, DEFAULT_SETTINGS.lookSensitivity),
+        turnSpeed: clampNum(parsed.turnSpeed, 0.2, 4, DEFAULT_SETTINGS.turnSpeed),
+        invertY: parsed.invertY === true,
+      };
+    } catch {
+      return { ...DEFAULT_SETTINGS };
+    }
+  },
+  saveSettings(s: Settings): void {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+    } catch {
+      // Private-mode or quota failures are not worth interrupting a round for.
+    }
+  },
 };
+
+/** Live settings, shared by the renderers and the pause menu. */
+export const settings: Settings = Store.getSettings();
+
+export function updateSettings(patch: Partial<Settings>): void {
+  Object.assign(settings, patch);
+  Store.saveSettings(settings);
+}

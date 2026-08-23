@@ -13,8 +13,9 @@ export interface Renderer {
   hide(): void;
   resize(w: number, h: number): void;
   render(world: World, dt: number): void;
-  /** Read Input (+ world, for player-relative aim) into a view-independent Intent. */
-  buildIntent(world: World, input: Input): Intent;
+  /** Read Input (+ world, for player-relative aim) into a view-independent Intent.
+   *  `dt` drives rate-based controls such as keyboard turning. */
+  buildIntent(world: World, input: Input, dt: number): Intent;
   /** Called when this view becomes active — a hook for pointer-lock etc. */
   onActivate(input: Input): void;
   dispose(): void;

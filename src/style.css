@@ -132,6 +132,35 @@ canvas { display: block; }
 }
 .controls .k { color: var(--toxic); font-weight: 700; }
 
+/* ---- Pause settings ---- */
+.settings {
+  pointer-events: auto; margin-top: 30px; width: 340px;
+  display: flex; flex-direction: column; gap: 16px; text-align: left;
+}
+.settings label { display: block; color: var(--muted); font-size: 13px; letter-spacing: 2px; text-transform: uppercase; }
+.settings label b { color: var(--toxic); float: right; letter-spacing: 1px; }
+.settings label.row { display: flex; align-items: center; justify-content: space-between; }
+.settings input[type="range"] {
+  -webkit-appearance: none; appearance: none; width: 100%; margin-top: 8px;
+  height: 4px; border-radius: 2px; background: var(--panel-edge); cursor: pointer;
+}
+.settings input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 16px; height: 16px;
+  border-radius: 50%; background: var(--toxic); border: none; cursor: pointer;
+}
+.settings input[type="range"]::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%; background: var(--toxic); border: none; cursor: pointer;
+}
+.settings input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--toxic); cursor: pointer; }
+
+/* ---- "click to look" hint, shown in 3D while pointer lock is off ---- */
+.hud-lookhint {
+  position: absolute; left: 50%; top: 58%; transform: translateX(-50%);
+  color: var(--ink); font-size: 14px; letter-spacing: 3px; text-transform: uppercase;
+  text-shadow: 0 2px 8px #000; opacity: 0.85; text-align: center; line-height: 1.7;
+}
+.hud-lookhint b { color: var(--toxic); }
+
 .gameover-stat { margin-top: 18px; font-size: 22px; color: var(--ink); }
 .gameover-stat b { color: var(--amber); font-size: 30px; }
 .gameover-best { color: var(--muted); letter-spacing: 2px; margin-top: 4px; }
