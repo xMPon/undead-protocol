@@ -13,6 +13,12 @@ export class Input {
   left = false;
   right = false;
   locked = false;
+  /**
+   * Fired whenever pointer lock is gained or lost. Browsers exit pointer lock on
+   * Escape and swallow that keydown, so this is the only reliable way to notice
+   * the player pressing it.
+   */
+  onLockChange?: (locked: boolean) => void;
 
   private el: HTMLElement | null = null;
 
@@ -24,7 +30,7 @@ export class Input {
     window.addEventListener("mousedown", this.onMouseDown);
     window.addEventListener("mouseup", this.onMouseUp);
     window.addEventListener("contextmenu", this.onContextMenu);
-    document.addEventListener("pointerlockchange", this.onLockChange);
+    document.addEventListener("pointerlockchange", this.handleLockChange);
   }
 
   detach(): void {
@@ -34,7 +40,7 @@ export class Input {
     window.removeEventListener("mousedown", this.onMouseDown);
     window.removeEventListener("mouseup", this.onMouseUp);
     window.removeEventListener("contextmenu", this.onContextMenu);
-    document.removeEventListener("pointerlockchange", this.onLockChange);
+    document.removeEventListener("pointerlockchange", this.handleLockChange);
   }
 
   isDown(code: string): boolean {
@@ -91,7 +97,10 @@ export class Input {
   private onContextMenu = (e: MouseEvent): void => {
     e.preventDefault();
   };
-  private onLockChange = (): void => {
-    this.locked = document.pointerLockElement === this.el;
+  private handleLockChange = (): void => {
+    const now = document.pointerLockElement === this.el;
+    if (now === this.locked) return;
+    this.locked = now;
+    this.onLockChange?.(now);
   };
 }

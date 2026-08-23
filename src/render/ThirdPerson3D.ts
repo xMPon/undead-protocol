@@ -20,7 +20,14 @@ import {
   makeDustField,
   makeStarField,
   makeSmokePlume,
+  makeDoorMesh,
+  makeDecalMesh,
+  makeZombieRig,
+  makePlayerRig,
+  makeWeaponMesh,
+  makeBloodBurst,
 } from "./procgen";
+import type { CharacterRig } from "./procgen";
 import { getWeapon } from "../data/weapons";
 import { settings } from "../persist/Store";
 import { rayVsRect } from "../sim/collision";
@@ -35,6 +42,11 @@ const CAM_DIST = 6.2;
 const CAM_MIN = 1.5;
 /** Clearance kept between the camera and whatever it backed off. */
 const CAM_PAD = 0.45;
+/** Rest height of each rig's hips, so the walk bob has something to bob around. */
+const ZOMBIE_HIP_Y = 0.9;
+const PLAYER_HIP_Y = 0.95;
+/** Seconds a blood burst lives. */
+const BURST_LIFE = 0.75;
 /** Real point lights kept alive at once; the rest of the map's fixtures glow only. */
 const LIGHT_POOL = 14;
 
@@ -55,10 +67,26 @@ function faceY(a: number): number {
   return Math.atan2(Math.cos(a), Math.sin(a));
 }
 
-interface ZombieMesh {
-  group: THREE.Group;
-  body: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
-  head: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+/**
+ * A pooled zombie body plus the state needed to animate it. The gait phase is
+ * advanced by distance travelled rather than by time, so feet do not slide, and
+ * it is clamped per frame because a pool slot can change owner when the horde is
+ * culled — a reused slot should pick up the walk, not snap through it.
+ */
+interface ZombieSlot {
+  rig: CharacterRig;
+  phase: number;
+  prevX: number;
+  prevZ: number;
+  /** Last frame's hit flash, so a rise can trigger a blood burst. */
+  prevFlash: number;
+}
+
+/** A short-lived spray of blood, recycled from a small pool. */
+interface Burst {
+  pts: THREE.Points;
+  vel: Float32Array;
+  life: number;
 }
 
 /**
@@ -108,12 +136,22 @@ export class ThirdPerson3D implements Renderer {
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(70, 1, 0.1, 400);
 
+  private playerRig!: CharacterRig;
   private player!: THREE.Group;
+  private weaponMesh: THREE.Group | null = null;
+  private weaponId = "";
+  private muzzleFlash: THREE.Mesh | null = null;
+  private recoil = 0;
+  private walkPhase = 0;
+  private prevPlayerX = 0;
+  private prevPlayerZ = 0;
+  private bursts: Burst[] = [];
+  private burstNext = 0;
   private muzzleLight!: THREE.PointLight;
   private tracers!: THREE.LineSegments;
   private tracerPos = new Float32Array(64 * 2 * 3);
-  private doorMeshes = new Map<string, THREE.Mesh>();
-  private zombiePool: ZombieMesh[] = [];
+  private doorMeshes = new Map<string, THREE.Object3D>();
+  private zombiePool: ZombieSlot[] = [];
   private hemi!: THREE.HemisphereLight;
   private dirLight!: THREE.DirectionalLight;
 
@@ -243,19 +281,36 @@ export class ThirdPerson3D implements Renderer {
       this.scene.add(mesh);
     }
 
-    // Doors get their own mesh each, so any one of them can vanish when bought.
-    const doorMat = new THREE.MeshStandardMaterial({ color: 0x7a3b1a, roughness: 0.7, emissive: 0x2a1305 });
+    // Doors get their own mesh each, so any one of them can open independently.
     for (const door of world.def.doors) {
       const dw = door.blocks.maxX - door.blocks.minX;
       const dd = door.blocks.maxY - door.blocks.minY;
       const dcx = (door.blocks.minX + door.blocks.maxX) / 2;
       const dcz = (door.blocks.minY + door.blocks.maxY) / 2;
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(dw, WALL_BOX, dd), doorMat);
-      mesh.position.set(dcx, height(dcx, dcz) + WALL_H / 2 - 0.6, dcz);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
+      // The door spans the wide axis of the gap it fills; the thin one is depth.
+      const acrossX = dw >= dd;
+      const mesh = makeDoorMesh(acrossX ? dw : dd, WALL_H, (acrossX ? dd : dw) * 0.8, door.name ?? "Door", door.cost);
+      if (!acrossX) mesh.rotation.y = Math.PI / 2;
+      mesh.position.set(dcx, height(dcx, dcz) + WALL_H / 2 - 0.35, dcz);
       this.scene.add(mesh);
       this.doorMeshes.set(door.id, mesh);
+    }
+
+    // Graffiti, stencils and stains. Flat on the floor when height is 0.
+    for (const d of world.def.decals ?? []) {
+      const mesh = makeDecalMesh(d);
+      const h = d.height ?? 1.5;
+      const gy = height(d.pos.x, d.pos.y);
+      if (h <= 0.001) {
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.rotation.z = d.rot ?? 0;
+        mesh.position.set(d.pos.x, gy + 0.03, d.pos.y);
+      } else {
+        // `rot` is a heading on the sim plane; three turns the other way about Y.
+        mesh.rotation.y = -(d.rot ?? 0) + Math.PI / 2;
+        mesh.position.set(d.pos.x, gy + h, d.pos.y);
+      }
+      this.scene.add(mesh);
     }
 
     // Wall-buy markers.
@@ -303,33 +358,18 @@ export class ThirdPerson3D implements Renderer {
     this.emitterDist = new Float64Array(this.emitters.length);
     this.emitterRank = this.emitters.map((_, i) => i);
 
-    // Player: torso + head + gun.
-    this.player = new THREE.Group();
-    const torso = new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.32, 0.9, 6, 12),
-      new THREE.MeshStandardMaterial({ color: 0x33465c, roughness: 0.55, metalness: 0.25, transparent: true }),
-    );
-    this.playerMats.push(torso.material);
-    torso.position.y = 1.0;
-    torso.castShadow = true;
-    this.player.add(torso);
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.26, 16, 12),
-      new THREE.MeshStandardMaterial({ color: 0xc7a488, roughness: 0.7, transparent: true }),
-    );
-    this.playerMats.push(head.material);
-    head.position.y = 1.7;
-    head.castShadow = true;
-    this.player.add(head);
-    const gun = new THREE.Mesh(
-      new THREE.BoxGeometry(0.16, 0.16, 0.9),
-      new THREE.MeshStandardMaterial({ color: 0x0e0e10, roughness: 0.4, metalness: 0.7, transparent: true }),
-    );
-    this.playerMats.push(gun.material);
-    gun.position.set(0.25, 1.2, 0.5);
-    gun.castShadow = true;
-    this.player.add(gun);
+    // Player: a jointed rig with a weapon socket, posed every frame.
+    this.playerRig = makePlayerRig();
+    this.player = this.playerRig.group;
+    this.playerMats.push(...this.playerRig.flesh);
     this.scene.add(this.player);
+
+    // Blood bursts, pooled and reused.
+    for (let i = 0; i < 6; i++) {
+      const pts = makeBloodBurst(14);
+      this.scene.add(pts);
+      this.bursts.push({ pts, vel: new Float32Array(14 * 3), life: 0 });
+    }
   }
 
   /** Orient a light cone so its narrow end sits at the source and it points `dir`. */
@@ -425,6 +465,13 @@ export class ThirdPerson3D implements Renderer {
         this.addEmitter({ x: hx, y: hy, z: hz }, 0xfff0cc, 26, 44, "steady", { glow, cone: beam });
         break;
       }
+      case "blockhouse": {
+        // A warm bulb just inside the doorway, so the shelter reads as somewhere
+        // you can actually go rather than a solid block.
+        const glowPos = { x: prop.pos.x + fx * 1.3 * scl, y: gy + 2.7 * scl, z: prop.pos.y + fz * 1.3 * scl };
+        this.addEmitter(glowPos, 0xffd9a0, 12, 14, "flicker", { glow });
+        break;
+      }
       case "firebarrel": {
         const flame = g.getObjectByName("flame") ?? null;
         this.addEmitter({ x: prop.pos.x, y: gy + 1.3 * scl, z: prop.pos.y }, 0xff8a20, 11, 16, "fire", { flame });
@@ -502,61 +549,169 @@ export class ThirdPerson3D implements Renderer {
     return Math.max(CAM_MIN, best - CAM_PAD);
   }
 
-  private makeZombie(): ZombieMesh {
-    const group = new THREE.Group();
-    // Slight per-zombie colour variation so a horde doesn't look cloned.
-    const hue = 0.26 + (Math.random() - 0.5) * 0.06;
-    const skin = new THREE.Color().setHSL(hue, 0.33, 0.26 + Math.random() * 0.05);
-    const skinDark = skin.clone().multiplyScalar(0.8);
-
-    const body = new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.3, 0.7, 4, 10),
-      new THREE.MeshStandardMaterial({ color: skin, roughness: 0.92 }),
-    ) as ZombieMesh["body"];
-    body.position.y = 0.95;
-    body.rotation.x = 0.18; // hunched
-    body.castShadow = true;
-    group.add(body);
-
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.24, 12, 10),
-      new THREE.MeshStandardMaterial({ color: skin.clone().lerp(new THREE.Color(0xc7b48a), 0.35), roughness: 0.85 }),
-    ) as ZombieMesh["head"];
-    head.position.set(0, 1.62, 0.12);
-    head.castShadow = true;
-    group.add(head);
-
-    const armMat = new THREE.MeshStandardMaterial({ color: skinDark, roughness: 0.92 });
-    for (const sx of [-0.34, 0.34]) {
-      const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.55, 4, 8), armMat);
-      arm.position.set(sx, 1.15, 0.4);
-      arm.rotation.x = 1.4; // reaching forward
-      arm.castShadow = true;
-      group.add(arm);
-    }
-    group.visible = false;
-    this.scene.add(group);
-    return { group, body, head };
+  private makeZombie(): ZombieSlot {
+    const rig = makeZombieRig();
+    this.scene.add(rig.group);
+    return { rig, phase: Math.random() * Math.PI * 2, prevX: 0, prevZ: 0, prevFlash: 0 };
   }
 
-  private syncZombie(zm: ZombieMesh, z: Zombie, groundY: number): void {
-    zm.group.visible = true;
+  /** Throw a short spray of blood from a point, recycling the oldest burst. */
+  private spatter(x: number, y: number, z: number, force: number): void {
+    const burst = this.bursts[this.burstNext];
+    this.burstNext = (this.burstNext + 1) % this.bursts.length;
+    const arr = burst.pts.geometry.attributes.position.array as Float32Array;
+    for (let i = 0; i < arr.length; i += 3) {
+      arr[i] = arr[i + 1] = arr[i + 2] = 0;
+      const a = Math.random() * Math.PI * 2;
+      const up = 0.6 + Math.random() * 2.2;
+      const out = (0.7 + Math.random() * 1.8) * force;
+      burst.vel[i] = Math.cos(a) * out;
+      burst.vel[i + 1] = up;
+      burst.vel[i + 2] = Math.sin(a) * out;
+    }
+    burst.pts.geometry.attributes.position.needsUpdate = true;
+    burst.pts.position.set(x, y, z);
+    burst.pts.visible = true;
+    burst.life = BURST_LIFE;
+  }
+
+  private updateBursts(dt: number): void {
+    for (const burst of this.bursts) {
+      if (burst.life <= 0) continue;
+      burst.life -= dt;
+      if (burst.life <= 0) {
+        burst.pts.visible = false;
+        continue;
+      }
+      const arr = burst.pts.geometry.attributes.position.array as Float32Array;
+      for (let i = 0; i < arr.length; i += 3) {
+        burst.vel[i + 1] -= 11 * dt;
+        arr[i] += burst.vel[i] * dt;
+        arr[i + 1] += burst.vel[i + 1] * dt;
+        arr[i + 2] += burst.vel[i + 2] * dt;
+      }
+      burst.pts.geometry.attributes.position.needsUpdate = true;
+      (burst.pts.material as THREE.PointsMaterial).opacity = Math.min(1, burst.life / (BURST_LIFE * 0.6));
+    }
+  }
+
+  /**
+   * Pose one zombie. A shambler is mostly a walk cycle plus a lurch: legs
+   * counter-swinging, the torso rolling with them, arms out and drifting, and
+   * the head lolling a beat behind. Attacking swaps the arms to a fast grab.
+   */
+  private syncZombie(slot: ZombieSlot, z: Zombie, groundY: number, t: number): void {
+    const { rig } = slot;
+    rig.group.visible = true;
+
     let yOff = 0;
     if (z.state === "rising") yOff = -(z.riseTimer / ZOMBIE_RISE_TIME) * 1.7;
-    zm.group.position.set(z.pos.x, groundY + yOff, z.pos.y);
-    zm.group.rotation.y = faceY(z.facing);
+    rig.group.position.set(z.pos.x, groundY + yOff, z.pos.y);
+    rig.group.rotation.y = faceY(z.facing);
+
+    // Gait phase from ground covered, clamped so a recycled slot cannot jump.
+    const moved = Math.hypot(z.pos.x - slot.prevX, z.pos.y - slot.prevZ);
+    slot.prevX = z.pos.x;
+    slot.prevZ = z.pos.y;
+    slot.phase += Math.min(moved, 0.35) * 3.4;
+    const swing = Math.sin(slot.phase);
+    const roll = Math.sin(slot.phase * 0.5);
 
     if (z.isDead) {
-      const t = Math.min(1, z.deadTimer * 2.2);
-      zm.group.rotation.x = -t * (Math.PI / 2);
-      zm.group.position.y = groundY + yOff - t * 0.3;
-    } else {
-      zm.group.rotation.x = 0;
+      // Collapse: fold forward and let the limbs go slack.
+      const k = Math.min(1, z.deadTimer * 2.2);
+      rig.group.rotation.x = -k * (Math.PI / 2);
+      rig.group.position.y = groundY + yOff - k * 0.3;
+      const slack = 1 - k;
+      rig.legL.rotation.x = swing * 0.3 * slack;
+      rig.legR.rotation.x = -swing * 0.3 * slack;
+      rig.armL.rotation.set(-0.4 * slack, 0, 0.3 * slack);
+      rig.armR.rotation.set(-0.4 * slack, 0, -0.3 * slack);
+      rig.upper.rotation.set(0.2, 0, 0);
+      return;
     }
+
+    rig.group.rotation.x = 0;
+    rig.legL.rotation.x = swing * 0.55;
+    rig.legR.rotation.x = -swing * 0.55;
+    rig.upper.position.y = ZOMBIE_HIP_Y + Math.abs(swing) * 0.045;
+    rig.upper.rotation.set(0.18, 0, roll * 0.1);
+    rig.head.rotation.set(-0.16, roll * 0.18, roll * 0.14);
+
+    if (z.state === "attacking") {
+      // Grabbing: both arms up and clawing, quicker than the walk.
+      const claw = Math.sin(t * 13 + slot.phase) * 0.45;
+      rig.armL.rotation.set(-2.0 + claw, 0, 0.35);
+      rig.armR.rotation.set(-2.0 - claw, 0, -0.35);
+    } else {
+      rig.armL.rotation.set(-1.28 - swing * 0.2, 0, 0.22 + roll * 0.06);
+      rig.armR.rotation.set(-1.28 + swing * 0.2, 0, -0.22 + roll * 0.06);
+    }
+
+    // Hit flash, and a spray of blood on the frame the flash rises.
     const flash = z.hitFlash;
+    if (flash > slot.prevFlash + 0.2) {
+      this.spatter(z.pos.x, groundY + 1.25, z.pos.y, 1);
+    }
+    slot.prevFlash = flash;
     const e = new THREE.Color(flash, flash * 0.15, flash * 0.15);
-    zm.body.material.emissive = e;
-    zm.head.material.emissive = e;
+    for (const m of rig.flesh) m.emissive = e;
+  }
+
+  /** Pose the player: walk cycle, weapon carry, and recoil. */
+  private syncPlayer(world: World, dt: number, t: number): void {
+    const rig = this.playerRig;
+    const p = world.player;
+
+    // Swap the weapon model when the carried gun changes.
+    const def = p.def();
+    if (def.id !== this.weaponId) {
+      this.weaponId = def.id;
+      if (this.weaponMesh) rig.hand.remove(this.weaponMesh);
+      this.weaponMesh = makeWeaponMesh(def);
+      this.weaponMesh.traverse((o) => {
+        if (o instanceof THREE.Mesh && o.material instanceof THREE.MeshStandardMaterial) {
+          o.material.transparent = true;
+          if (!this.playerMats.includes(o.material)) this.playerMats.push(o.material);
+        }
+      });
+      this.muzzleFlash = (this.weaponMesh.getObjectByName("flash") as THREE.Mesh) ?? null;
+      rig.hand.add(this.weaponMesh);
+    }
+
+    const moved = Math.hypot(p.pos.x - this.prevPlayerX, p.pos.y - this.prevPlayerZ);
+    this.prevPlayerX = p.pos.x;
+    this.prevPlayerZ = p.pos.y;
+    this.walkPhase += Math.min(moved, 0.4) * 3.0;
+    const swing = Math.sin(this.walkPhase);
+    const moving = moved > 0.004;
+    const stride = moving ? 0.5 : 0;
+
+    rig.legL.rotation.x = swing * stride;
+    rig.legR.rotation.x = -swing * stride;
+    rig.upper.position.y = PLAYER_HIP_Y + Math.abs(swing) * 0.03 * (moving ? 1 : 0);
+    // Idle breathing keeps a standing player from looking like a statue.
+    const breathe = Math.sin(t * 1.6) * 0.012;
+
+    // Recoil decays fast; it kicks the torso back and shoves the weapon into the
+    // shoulder, which is what actually sells a shot at this camera distance.
+    this.recoil = Math.max(0, this.recoil - dt * 7);
+    if (world.muzzle > 0) this.recoil = Math.min(1, this.recoil + 0.55);
+
+    rig.upper.rotation.set(-0.06 - this.recoil * 0.12 + breathe, 0, 0);
+    rig.armL.rotation.set(-1.36 + this.recoil * 0.16, 0, 0.42);
+    rig.armR.rotation.set(-1.22 + this.recoil * 0.22, 0, -0.3);
+    rig.head.rotation.set(-this.recoil * 0.1, 0, 0);
+    rig.hand.position.set(0.17, 0.44, 0.34 - this.recoil * 0.09);
+
+    if (this.muzzleFlash) {
+      this.muzzleFlash.visible = world.muzzle > 0;
+      if (this.muzzleFlash.visible) {
+        const flare = 0.7 + Math.random() * 0.6;
+        this.muzzleFlash.scale.set(flare, 0.8 + Math.random() * 0.5, flare);
+        this.muzzleFlash.rotation.z = Math.random() * Math.PI;
+      }
+    }
   }
 
   /** Advance every animated atmosphere element. Allocation-free. */
@@ -629,19 +784,29 @@ export class ThirdPerson3D implements Renderer {
     this.time += dt;
     this.buildFromWorld(world);
     for (const [id, mesh] of this.doorMeshes) mesh.visible = !world.map.openedDoors.has(id);
+    // Pulse the keypad LED on every still-locked door so they read as live.
+    for (const mesh of this.doorMeshes.values()) {
+      if (!mesh.visible) continue;
+      const led = mesh.getObjectByName("led");
+      if (led instanceof THREE.Mesh && led.material instanceof THREE.MeshStandardMaterial) {
+        led.material.emissiveIntensity = 1.2 + Math.abs(Math.sin(this.time * 2.6)) * 2.2;
+      }
+    }
 
     const p = world.player;
     const groundP = world.terrain.heightAt(p.pos.x, p.pos.y);
     this.player.position.set(p.pos.x, p.footY, p.pos.y);
     this.player.rotation.y = faceY(p.aim);
+    this.syncPlayer(world, dt, this.time);
 
     // Zombies (pooled)
     const zs = world.zombies;
     for (let i = 0; i < zs.length; i++) {
       if (!this.zombiePool[i]) this.zombiePool[i] = this.makeZombie();
-      this.syncZombie(this.zombiePool[i], zs[i], zs[i].footY);
+      this.syncZombie(this.zombiePool[i], zs[i], zs[i].footY, this.time);
     }
-    for (let i = zs.length; i < this.zombiePool.length; i++) this.zombiePool[i].group.visible = false;
+    for (let i = zs.length; i < this.zombiePool.length; i++) this.zombiePool[i].rig.group.visible = false;
+    this.updateBursts(dt);
 
     // Muzzle flash
     this.muzzleLight.intensity = world.muzzle > 0 ? 6 : 0;

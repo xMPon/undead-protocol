@@ -147,16 +147,34 @@ describe.each(MAPS)("%s map data", (_name, def) => {
     expect(map.walls.length).toBe(def.walls.length + def.doors.length + pieces);
   });
 
-  it("leaves the space under a multi-part prop walkable", () => {
-    // A guard tower is four legs. Standing dead centre under it has to be legal,
-    // or it reads as an invisible wall in the middle of open ground.
+  it("leaves the inside of a multi-part prop walkable and reachable", () => {
+    // A guard tower is four legs and a blockhouse is four walls with a doorway.
+    // Standing dead centre has to be legal — otherwise it is an invisible wall —
+    // and the horde has to be able to path in, or it is a free safe room.
     const world = new World(def);
+    const flow = new FlowField(def.bounds, 0.8);
+    flow.rebuild(world.map.walls);
+    flow.compute(def.playerSpawn);
     for (const p of def.props ?? []) {
       if (!PROP_SPECS[p.kind].parts) continue;
+      const label = `${p.kind} at ${p.pos.x},${p.pos.y}`;
       const moved = resolveCircleObstacles(p.pos, world.player.radius, world.terrain.heightAt(p.pos.x, p.pos.y), world.obstacles);
-      expect
-        .soft(Math.hypot(moved.x - p.pos.x, moved.y - p.pos.y), `${p.kind} at ${p.pos.x},${p.pos.y} blocks its own centre`)
-        .toBeLessThan(0.01);
+      expect.soft(Math.hypot(moved.x - p.pos.x, moved.y - p.pos.y), `${label} blocks its own centre`).toBeLessThan(0.01);
+      expect.soft(flow.reachable(p.pos), `${label} cannot be pathed into`).toBe(true);
+    }
+  });
+
+  it("keeps decals inside the map and legible", () => {
+    for (const d of def.decals ?? []) {
+      const label = `${d.kind} at ${d.pos.x},${d.pos.y}`;
+      expect.soft(d.pos.x, label).toBeGreaterThanOrEqual(def.bounds.minX);
+      expect.soft(d.pos.x, label).toBeLessThanOrEqual(def.bounds.maxX);
+      expect.soft(d.pos.y, label).toBeGreaterThanOrEqual(def.bounds.minY);
+      expect.soft(d.pos.y, label).toBeLessThanOrEqual(def.bounds.maxY);
+      // A tag or stencil with no text renders as an empty smear.
+      if (d.kind === "tag" || d.kind === "stencil") expect.soft(d.text, `${label} has no text`).toBeTruthy();
+      // Wall decals must clear the top of a 2.6-unit wall.
+      expect.soft(d.height ?? 1.5, `${label} is above the wall`).toBeLessThanOrEqual(2.0);
     }
   });
 

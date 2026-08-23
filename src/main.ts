@@ -85,6 +85,13 @@ function toOver(): void {
   gameover.show(reached, best);
 }
 
+// Escape in a pointer-locked 3D view never reaches the keyboard handler: the
+// browser consumes it to release the mouse. Losing the lock mid-round *is* the
+// player asking to stop, so pause on that instead of waiting for a key.
+input.onLockChange = (locked) => {
+  if (!locked && state === "playing" && vm.currentName() === "3d") pauseGame();
+};
+
 menu.onStart = (v) => startGame(v);
 pause.onResume = () => resumeGame();
 pause.onQuit = () => toMenu();
@@ -98,7 +105,9 @@ const loop = new Loop((dt) => {
   if (state === "playing") {
     if (input.wasPressed("KeyT")) vm.toggle(input);
     if (input.wasPressed("Escape")) pauseGame();
-    // Re-acquire pointer lock on click in the 3D view.
+    // Re-acquire pointer lock on click in the 3D view. Pointer lock cannot be
+    // re-requested immediately after the browser drops it, so this waits for a
+    // deliberate click rather than fighting the browser for it.
     if (vm.currentName() === "3d" && !input.locked && input.left) input.requestLock();
 
     const intent = vm.buildIntent(world, input, dt);

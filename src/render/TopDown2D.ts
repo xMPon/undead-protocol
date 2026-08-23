@@ -22,8 +22,6 @@ const GROUND2D: Record<GroundKind, [number, number, number]> = {
   grass: [40, 52, 34],
 };
 
-/** Kinds whose footprint reads better as a disc than a box. */
-const ROUND_PROPS = new Set<PropKind>(["barrel", "firebarrel", "lamp", "tank", "cone", "deadTree", "floodlight", "antenna"]);
 
 const hex = (n: number): string => "#" + (n & 0xffffff).toString(16).padStart(6, "0");
 const rgba = (n: number, a: number): string => `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
@@ -69,6 +67,7 @@ export class TopDown2D implements Renderer {
 
     this.worldTransform();
     this.drawTerrain(world);
+    this.drawFloorDecals(world);
     this.drawGrid(world);
     ctx.globalCompositeOperation = "lighter";
     this.drawLights(world);
@@ -102,6 +101,22 @@ export class TopDown2D implements Renderer {
         ctx.fillStyle = `rgb(${(base[0] * f) | 0},${(base[1] * f) | 0},${(base[2] * f) | 0})`;
         ctx.fillRect(x, y, step + 0.03, step + 0.03);
       }
+    }
+  }
+
+  /** Floor stains only — wall graffiti has no meaning in a top-down view. */
+  private drawFloorDecals(world: World): void {
+    const ctx = this.ctx;
+    for (const d of world.def.decals ?? []) {
+      if ((d.height ?? 1.5) > 0.001) continue;
+      const r = (d.scale ?? 1) * 1.3;
+      ctx.save();
+      ctx.globalAlpha = d.kind === "scorch" ? 0.5 : 0.4;
+      ctx.fillStyle = d.kind === "scorch" ? "#141210" : "#5e0d0d";
+      ctx.beginPath();
+      ctx.ellipse(d.pos.x, d.pos.y, r, r * 0.8, d.rot ?? 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
   }
 
@@ -143,6 +158,9 @@ export class TopDown2D implements Renderer {
         case "generator":
           this.glow(p.pos.x, p.pos.y, 2.2 * s, 0x4cff88, 0.35);
           break;
+        case "blockhouse":
+          this.glow(p.pos.x + dx * 1.4, p.pos.y + dy * 1.4, 4 * s, 0xffd9a0, 0.4);
+          break;
         default:
           break;
       }
@@ -166,11 +184,18 @@ export class TopDown2D implements Renderer {
       ctx.strokeStyle = blocking ? "rgba(0,0,0,0.55)" : "rgba(0,0,0,0.25)";
       ctx.fillStyle = p.color !== undefined ? hex(p.color) : hex(spec.color);
 
-      if (p.kind === "puddle") {
+      if (spec.parts) {
+        // Draw the pieces, not the bounding box — the gap between a tower's legs
+        // or through a blockhouse doorway is exactly what the player needs to see.
+        for (const part of spec.parts) {
+          ctx.fillRect((part.dx - part.hx) * s, (part.dy - part.hy) * s, part.hx * 2 * s, part.hy * 2 * s);
+          ctx.strokeRect((part.dx - part.hx) * s, (part.dy - part.hy) * s, part.hx * 2 * s, part.hy * 2 * s);
+        }
+      } else if (p.kind === "puddle") {
         ctx.beginPath();
         ctx.ellipse(0, 0, hx, hy, 0, 0, Math.PI * 2);
         ctx.fill();
-      } else if (ROUND_PROPS.has(p.kind)) {
+      } else if (spec.round) {
         ctx.beginPath();
         ctx.arc(0, 0, hx, 0, Math.PI * 2);
         ctx.fill();

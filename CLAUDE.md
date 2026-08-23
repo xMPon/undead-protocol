@@ -31,9 +31,9 @@ changes nothing about game state.
 | `core/math.ts` | `Vec2` + pure vector/angle helpers (the shared ground-plane math) |
 | `core/rng.ts` | mulberry32 PRNG + integer hash (blockcraft pattern) |
 | `core/Loop.ts` | RAF loop with clamped dt |
-| `core/Input.ts` | keyboard state, one-frame edges, mouse pos/delta, pointer lock |
+| `core/Input.ts` | keyboard state, one-frame edges, mouse pos/delta, pointer lock + `onLockChange` |
 | `core/Sound.ts` | procedural WebAudio SFX (guns, groans, hits, round sting) — no files |
-| `sim/types.ts` | `Intent`, weapon/map/terrain/theme/prop/light data shapes, `Obstacle`, `Tracer` |
+| `sim/types.ts` | `Intent`, weapon/map/terrain/theme/prop/light/decal data shapes, `Obstacle`, `Tracer` |
 | `sim/World.ts` | **the integrator** — owns all state incl. terrain, obstacles, jump physics; `update(dt, intent)` |
 | `sim/Player.ts` | transform, `footY`/jump, survival (health/i-frames/regen), points, carried weapons |
 | `sim/Zombie.ts` | undead entity data + `footY`/jump + stuck-timer; damage/death; steering runs in World |
@@ -50,7 +50,7 @@ changes nothing about game state.
 | `render/ThirdPerson3D.ts` | Three.js view: displaced terrain, sun **shadows** + ACES tone mapping, entity jump lift, the diegetic light rig (a fixed 14-light pool handed to the nearest fixtures + haze cones + flicker) and atmosphere (fire, smoke, dust, stars) |
 | `render/TopDown2D.ts` | Canvas 2D top-down: terrain hillshade, prop footprints (dressing drawn faint), light glows, jump shadows |
 | `render/ViewManager.ts` | holds both renderers, keeps one visible, toggles them |
-| `render/procgen.ts` | procedural PBR-ish materials (albedo + **normal maps**), terrain mesh, sky dome, prop meshes — no asset files |
+| `render/procgen.ts` | procedural PBR-ish materials (albedo + **normal maps**), terrain mesh, sky dome, prop meshes, jointed character rigs, weapon models, decal textures — no asset files |
 | `data/weapons.ts` | `WEAPONS` registry (original, non-trademarked designations) |
 | `data/map_blacksite.ts` | the reference map "Blacksite" — walls, barriers, buys, door, terrain, theme, props, lights, `playBounds` |
 | `data/perks.ts` | perk registry — **reserved for Phase 2**, not wired yet |
@@ -87,6 +87,11 @@ changes nothing about game state.
   flow-field walls are both built from it, so what blocks the player, what blocks
   a zombie, and what you can see can never drift apart. Never re-derive a
   footprint by hand — an inflated bounding box is what an "invisible wall" is.
+- **Characters are jointed rigs, animated by the renderer.** `makeZombieRig` /
+  `makePlayerRig` hang limbs off pivot Groups; the renderer sets rotations. Gait
+  phase advances by **distance travelled, not time**, so feet never slide, and it
+  is clamped per frame because a pooled slot can change owner. The sim knows
+  nothing about any of it.
 - **Elevation is cosmetic to gameplay.** `Terrain.heightAt` and jump `footY`
   drive where things are *drawn* and height-aware obstacle mounting, but
   movement/collision resolve in 2D — so the sim stays deterministic and testable.
@@ -98,10 +103,12 @@ Every map is a single `MapDef` (`src/sim/types.ts`) exported from a file in
 shape. The full field-by-field guide, coordinate conventions, prop/terrain/theme
 /light options, region+door progression, and a new-map checklist live in
 [`docs/MAP-AUTHORING.md`](docs/MAP-AUTHORING.md). To add a prop kind: extend
-`PropKind` (`types.ts`), `PROP_SPECS` (`sim/props.ts`), `makePropMesh`
-(`render/procgen.ts`), and the 2D draw (`render/TopDown2D.ts`) — plus
-`addPropFx` (`render/ThirdPerson3D.ts`) if it emits light or animates. Props
-face **local +x along `rot`** in both views; keep new meshes to that convention.
+`PropKind` (`types.ts`), `PROP_SPECS` (`sim/props.ts`, including `round`/`parts`
+if it is not a plain box), and `makePropMesh` (`render/procgen.ts`) — plus
+`addPropFx` (`render/ThirdPerson3D.ts`) if it emits light or animates. The 2D
+view draws `parts` and `round` straight off the spec, so it needs no change for
+most kinds. Props face **local +x along `rot`** in both views; keep new meshes to
+that convention.
 
 ## Roadmap
 
@@ -132,6 +139,12 @@ face **local +x along `rot`** in both views; keep new meshes to that convention.
   pulls in and fades the player when something solid is behind them, and
   keyboard turning (Q/E, arrows) plus a persisted sensitivity/turn-speed setting
   in the pause menu make the game playable on a trackpad.
+  **Detail pass:** jointed, animated zombies (walk cycle, lurch, grab, collapse,
+  per-body variation, blood spray on hits) and player (walk cycle, weapon model
+  derived from weapon stats, recoil, muzzle flash); a `decals` layer for
+  graffiti/stencils/tallies/blood/scorch; walk-in `blockhouse` shelters; real
+  door models with keypads and price signs; Escape reliably pauses by watching
+  pointer-lock loss, which the browser eats the keydown for.
   **Remaining:** the four other maps + a map-select menu.
 - **Phase 2:** perks (Ironhide / Rapid Rounds / Fast Hands / Second Wind), the
   Mystery Box ("The Cache"), grenades, ADS, more map regions, board-up barriers.

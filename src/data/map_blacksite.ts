@@ -136,6 +136,11 @@ export const BLACKSITE: MapDef = {
       { rect: wall(10, 26, 18, 33), height: -1.8, blend: 1.2 }, // cable trench
       { rect: wall(32, 20, 56, 38), height: 0.8, blend: 2.5 }, // cold-store floor
       { rect: wall(44, 30, 55, 38), height: 2.6, blend: 1.2 }, // internal loading dock
+      // Level pads under the blockhouses. These come last so they win over the
+      // zones beneath them — a building on a slope shows daylight under a wall.
+      { rect: wall(-12.6, 6.6, -7.4, 11.4), height: 0.1, blend: 1.2 },
+      { rect: wall(49.6, 5.9, 54.4, 11.1), height: 0.4, blend: 1.4 },
+      { rect: wall(29.9, 27.6, 34.9, 32.4), height: 0.8, blend: 1.0 },
     ],
   },
 
@@ -280,7 +285,7 @@ export const BLACKSITE: MapDef = {
     { kind: "concreteBarrier", pos: { x: 61, y: 6 }, rot: 1.57 },
     { kind: "concreteBarrier", pos: { x: 61, y: 8.2 }, rot: 1.57 },
     { kind: "rubble", pos: { x: 54, y: 1 } },
-    { kind: "firebarrel", pos: { x: 50, y: 8 } },
+    { kind: "firebarrel", pos: { x: 49, y: 8 } },
     { kind: "firebarrel", pos: { x: 44, y: -10 } },
     { kind: "puddle", pos: { x: 48, y: -8 }, scale: 1.2 },
     { kind: "puddle", pos: { x: 36, y: 16 } },
@@ -360,6 +365,11 @@ export const BLACKSITE: MapDef = {
     { kind: "cone", pos: { x: 45.6, y: 20 } },
     { kind: "sign", pos: { x: 30.9, y: 31 } },
 
+    // --- Shelters you can actually walk into ---
+    { kind: "blockhouse", pos: { x: -10, y: 9 } }, // spawn yard: pump house, door east
+    { kind: "blockhouse", pos: { x: 52, y: 8.5 }, rot: -1.57 }, // vault yard: door north
+    { kind: "blockhouse", pos: { x: 32.4, y: 30 } }, // cold store: door east
+
     // --- Outside the wire: the southern approach ---
     { kind: "deadTree", pos: { x: -6, y: 26 } },
     { kind: "deadTree", pos: { x: -12, y: 36 } },
@@ -373,5 +383,40 @@ export const BLACKSITE: MapDef = {
   lights: [
     // Vault-door status lamp — the one non-diegetic accent on the map.
     { pos: { x: 26.9, y: 3.6 }, color: 0xff3b30, intensity: 6, range: 10, height: 2.2 },
+  ],
+
+  // What the last people here left behind. `rot` is the direction a wall decal
+  // faces, so it must point *away* from the wall and into the room; `height: 0`
+  // lays a stain flat on the ground instead.
+  decals: [
+    // --- Spawn yard ---
+    { kind: "tag", pos: { x: -8, y: -17.85 }, rot: 1.5708, height: 1.6, text: "NO EVAC" },
+    { kind: "tally", pos: { x: 9, y: -17.85 }, rot: 1.5708, height: 1.5, scale: 1.1 },
+    { kind: "tag", pos: { x: -18, y: 17.85 }, rot: -1.5708, height: 1.65, text: "DAY 41\nSTILL HERE", color: 0xe0d8c0 },
+    { kind: "stencil", pos: { x: 20, y: 17.85 }, rot: -1.5708, height: 1.75, text: "SECTOR 7" },
+    { kind: "biohazard", pos: { x: -25.85, y: -6 }, rot: 0, height: 1.7, scale: 1.15 },
+    { kind: "arrow", pos: { x: -25.85, y: 7 }, rot: 0, height: 1.5 },
+    { kind: "stencil", pos: { x: 25.55, y: -8 }, rot: 3.1416, height: 1.75, text: "VAULT" },
+    { kind: "tag", pos: { x: 25.55, y: 8 }, rot: 3.1416, height: 1.6, text: "DO NOT\nOPEN", color: 0xd8452c },
+
+    // --- Vault yard ---
+    { kind: "tag", pos: { x: 36, y: -17.85 }, rot: 1.5708, height: 1.6, text: "IT SEES", scale: 0.95 },
+    { kind: "stencil", pos: { x: 56, y: 17.85 }, rot: -1.5708, height: 1.75, text: "COLD STORE" },
+    { kind: "arrow", pos: { x: 65.55, y: -8 }, rot: 3.1416, height: 1.55 },
+
+    // --- Southern wings ---
+    { kind: "stencil", pos: { x: 4.15, y: 34 }, rot: 0, height: 1.75, text: "HIGH VOLTAGE" },
+    { kind: "tag", pos: { x: 24, y: 39.85 }, rot: -1.5708, height: 1.6, text: "WE TRIED" },
+    { kind: "biohazard", pos: { x: 57.85, y: 34 }, rot: 3.1416, height: 1.7 },
+    { kind: "stencil", pos: { x: 36, y: 39.85 }, rot: -1.5708, height: 1.75, text: "QUARANTINE" },
+
+    // --- Stains on the ground, where it already happened ---
+    { kind: "blood", pos: { x: 0, y: -15 }, height: 0, scale: 1.2 },
+    { kind: "blood", pos: { x: -23, y: 0 }, height: 0 },
+    { kind: "blood", pos: { x: 46, y: -15 }, height: 0, scale: 1.1 },
+    { kind: "blood", pos: { x: 13, y: 20 }, height: 0, scale: 0.9 },
+    { kind: "scorch", pos: { x: -14, y: 3.2 }, height: 0, scale: 1.4 },
+    { kind: "scorch", pos: { x: 52, y: 15 }, height: 0, scale: 1.3 },
+    { kind: "scorch", pos: { x: 23, y: 37.6 }, height: 0, scale: 1.2 },
   ],
 };

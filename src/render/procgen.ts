@@ -5,7 +5,7 @@
 // performance/beauty balance point: real surface detail without per-object cost.
 
 import * as THREE from "three";
-import type { WallRect, GroundKind, PropKind } from "../sim/types";
+import type { WallRect, GroundKind, PropKind, WeaponDef, DecalDef, DecalKind } from "../sim/types";
 
 // ---------- low-level canvas helpers ----------
 
@@ -936,6 +936,41 @@ export function makePropMesh(kind: PropKind, scale = 1, color?: number): THREE.G
       group.add(lens);
       return group;
     }
+    case "blockhouse": {
+      // A walk-in outbuilding. The shell is modelled as separate wall slabs so
+      // the doorway is a real gap you can see through, matching the collider.
+      const shell = wallMaterial();
+      shell.color.setHex(color ?? 0x6a6963);
+      const h = 3.0;
+      at(box(0.3, h, 3.6, shell), -1.85, h / 2, 0); // back
+      at(box(4.0, h, 0.3, shell), 0, h / 2, -1.65); // left
+      at(box(4.0, h, 0.3, shell), 0, h / 2, 1.65); // right
+      at(box(0.3, h, 0.7, shell), 1.85, h / 2, -1.45); // front, either side
+      at(box(0.3, h, 0.7, shell), 1.85, h / 2, 1.45); //   of the doorway
+      // Lintel over the opening, and a flat roof with a lip.
+      at(box(0.3, 0.55, 2.2, shell), 1.85, h - 0.28, 0);
+      const roof = box(4.3, 0.22, 3.9, metalMaterial(0x4a4e52, 0.85));
+      at(roof, 0, h + 0.11, 0);
+      at(box(4.5, 0.14, 4.1, shell), 0, h + 0.28, 0);
+      // Dark interior floor so the inside reads as sheltered, not painted-on.
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(3.4 * scale, 3.0 * scale),
+        new THREE.MeshStandardMaterial({ color: 0x2a2926, roughness: 1 }),
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = 0.02 * scale;
+      floor.receiveShadow = true;
+      group.add(floor);
+      // Barred window on the back wall, and a lamp inside the doorway.
+      const barMat = metalMaterial(0x3a3f42, 0.8);
+      at(box(0.06, 0.7, 1.1, new THREE.MeshStandardMaterial({ color: 0x11161a, roughness: 0.3, metalness: 0.4 })), -1.98, 1.9, 0);
+      for (let i = 0; i < 4; i++) at(cyl(0.03, 0.03, 0.75, barMat, 5), -2.02, 1.9, -0.45 + i * 0.3);
+      const lamp = box(0.3, 0.12, 0.5, emissive(0xffd9a0, 1.8));
+      lamp.name = "glow";
+      lamp.position.set(1.3 * scale, 2.7 * scale, 0);
+      group.add(lamp);
+      return group;
+    }
     case "cone": {
       const orange = new THREE.MeshStandardMaterial({ color: color ?? 0xd85a1e, roughness: 0.85 });
       at(box(0.44, 0.05, 0.44, orange), 0, 0.025, 0);
@@ -973,3 +1008,567 @@ export function makePropMesh(kind: PropKind, scale = 1, color?: number): THREE.G
     }
   }
 }
+
+/**
+ * A point-gated door: steel double leaves in a frame, hazard chevrons, a keypad
+ * with a live LED, and the price on a sign above it. Built spanning local X with
+ * its thickness in Z — the renderer turns it to match the wall gap it fills.
+ */
+export function makeDoorMesh(width: number, height: number, thickness: number, name: string, cost: number): THREE.Group {
+  const g = new THREE.Group();
+  const steel = metalMaterial(0x6a4a2c, 0.55);
+  const dark = new THREE.MeshStandardMaterial({ color: 0x24211d, roughness: 0.8, metalness: 0.4 });
+
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(width, height, thickness), steel);
+  frame.castShadow = true;
+  frame.receiveShadow = true;
+  g.add(frame);
+
+  // Two leaves with a seam down the middle and a recessed panel each.
+  const leafW = width * 0.46;
+  for (const side of [-1, 1]) {
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(leafW, height * 0.82, thickness * 1.5), steel);
+    leaf.position.set(side * width * 0.24, -height * 0.05, 0);
+    leaf.castShadow = true;
+    g.add(leaf);
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(leafW * 0.7, height * 0.4, thickness * 0.4), dark);
+    panel.position.set(side * width * 0.24, height * 0.12, thickness * 0.9);
+    g.add(panel);
+    // Wired-glass viewport.
+    const glass = new THREE.Mesh(
+      new THREE.BoxGeometry(leafW * 0.42, height * 0.13, thickness * 0.3),
+      new THREE.MeshStandardMaterial({ color: 0x1b2a22, roughness: 0.25, metalness: 0.3, emissive: 0x0a1a12 }),
+    );
+    glass.position.set(side * width * 0.24, height * 0.3, thickness * 1.0);
+    g.add(glass);
+  }
+
+  // Hazard chevrons along the bottom rail.
+  const stripeMat = new THREE.MeshStandardMaterial({ color: 0xd8b32a, roughness: 0.75, emissive: 0x3a2c06 });
+  const stripes = Math.max(3, Math.floor(width / 0.42));
+  for (let i = 0; i < stripes; i++) {
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(width / stripes * 0.45, height * 0.1, thickness * 0.25), stripeMat);
+    stripe.position.set(-width / 2 + (i + 0.5) * (width / stripes), -height * 0.38, thickness * 0.95);
+    stripe.rotation.z = 0.5;
+    g.add(stripe);
+  }
+
+  // Keypad — the thing you actually press F on.
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.3, 0.1), dark);
+  pad.position.set(width * 0.5 + 0.14, 0.1, thickness * 0.6);
+  g.add(pad);
+  const led = new THREE.Mesh(
+    new THREE.SphereGeometry(0.045, 8, 6),
+    new THREE.MeshStandardMaterial({ color: 0xff3020, emissive: 0xff3020, emissiveIntensity: 2.5 }),
+  );
+  led.name = "led";
+  led.position.set(width * 0.5 + 0.14, 0.22, thickness * 0.6 + 0.05);
+  g.add(led);
+
+  const label = makeLabelSprite(name.replace(/^Open\s+/i, "").toUpperCase(), `$${cost}`);
+  label.position.set(0, height * 0.62, 0);
+  g.add(label);
+  return g;
+}
+
+// ---------- characters ----------
+
+/**
+ * A jointed body the renderer can pose. Limbs hang off pivot Groups placed at
+ * the joint, so animating is a matter of setting rotations — no skinning, no
+ * skeleton, and nothing to load.
+ */
+export interface CharacterRig {
+  group: THREE.Group;
+  /** Everything above the hips; leaned and bobbed as a unit. */
+  upper: THREE.Group;
+  head: THREE.Group;
+  armL: THREE.Group;
+  armR: THREE.Group;
+  legL: THREE.Group;
+  legR: THREE.Group;
+  /** Materials tinted for the hit flash. */
+  flesh: THREE.MeshStandardMaterial[];
+  /** Where a held weapon is parented (right hand). */
+  hand: THREE.Group;
+}
+
+/** A limb: a pivot Group at the joint with the limb hanging below it. */
+function limb(length: number, radius: number, mat: THREE.Material, taper = 0.85): THREE.Group {
+  const pivot = new THREE.Group();
+  const upper = new THREE.Mesh(new THREE.CapsuleGeometry(radius, length * 0.5, 3, 6), mat);
+  upper.position.y = -length * 0.27;
+  upper.castShadow = true;
+  pivot.add(upper);
+  const lower = new THREE.Mesh(new THREE.CapsuleGeometry(radius * taper, length * 0.45, 3, 6), mat);
+  lower.position.y = -length * 0.75;
+  lower.castShadow = true;
+  pivot.add(lower);
+  return pivot;
+}
+
+const HAIR_COLORS = [0x2b2118, 0x4a3a28, 0x6b6257, 0x1c1a18, 0x87765c];
+const ZOMBIE_CLOTH = [0x35404a, 0x4a4438, 0x2f3a33, 0x53433c, 0x3b3f52, 0x5a5148];
+
+/**
+ * A shambler. Every one is built a little differently — height, skin, clothing,
+ * hair, and one in six missing an arm — so a horde never reads as one model
+ * repeated. `seed` picks the variant deterministically enough for variety.
+ */
+export function makeZombieRig(): CharacterRig {
+  const group = new THREE.Group();
+  const scale = 0.92 + Math.random() * 0.22;
+  group.scale.setScalar(scale);
+
+  const skin = new THREE.Color().setHSL(0.26 + (Math.random() - 0.5) * 0.08, 0.3, 0.24 + Math.random() * 0.06);
+  const fleshMat = new THREE.MeshStandardMaterial({ color: skin, roughness: 0.94 });
+  const faceMat = new THREE.MeshStandardMaterial({ color: skin.clone().lerp(new THREE.Color(0xc7b48a), 0.3), roughness: 0.88 });
+  const cloth = ZOMBIE_CLOTH[Math.floor(Math.random() * ZOMBIE_CLOTH.length)];
+  const clothMat = new THREE.MeshStandardMaterial({ color: cloth, roughness: 1 });
+  const trouserMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(cloth).multiplyScalar(0.6), roughness: 1 });
+
+  // --- lower body: legs hang from the hips ---
+  const legL = limb(0.86, 0.11, trouserMat);
+  const legR = limb(0.86, 0.11, trouserMat);
+  legL.position.set(-0.16, 0.9, 0);
+  legR.position.set(0.16, 0.9, 0);
+  group.add(legL, legR);
+  for (const [leg, side] of [[legL, -1], [legR, 1]] as const) {
+    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.11, 0.3), trouserMat);
+    boot.position.set(0, -0.86, 0.05);
+    boot.castShadow = true;
+    leg.add(boot);
+    void side;
+  }
+
+  // --- upper body ---
+  const upper = new THREE.Group();
+  upper.position.y = 0.9;
+  group.add(upper);
+
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.26, 0.5, 4, 10), clothMat);
+  torso.position.y = 0.3;
+  torso.castShadow = true;
+  upper.add(torso);
+
+  // A ragged, flapping hem below the shirt.
+  const hem = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.26, 8, 1, true), clothMat);
+  hem.position.y = 0.04;
+  hem.rotation.x = Math.PI;
+  hem.castShadow = true;
+  upper.add(hem);
+
+  // Old wound on the chest — the reason it is walking about.
+  const wound = new THREE.Mesh(
+    new THREE.CircleGeometry(0.09, 8),
+    new THREE.MeshStandardMaterial({ color: 0x4a0f0f, roughness: 1 }),
+  );
+  wound.position.set((Math.random() - 0.5) * 0.2, 0.34, 0.255);
+  upper.add(wound);
+
+  const head = new THREE.Group();
+  head.position.y = 0.72;
+  upper.add(head);
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), faceMat);
+  skull.scale.set(1, 1.08, 1.05);
+  skull.castShadow = true;
+  head.add(skull);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.09, 0.16), faceMat);
+  jaw.position.set(0, -0.14, 0.07);
+  jaw.rotation.x = 0.25; // hanging open
+  head.add(jaw);
+  const hairMat = new THREE.MeshStandardMaterial({ color: HAIR_COLORS[Math.floor(Math.random() * HAIR_COLORS.length)], roughness: 1 });
+  if (Math.random() > 0.25) {
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.205, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), hairMat);
+    hair.position.y = 0.03;
+    head.add(hair);
+  }
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0xd8d2b8, emissive: 0x2a2a18, roughness: 0.6 });
+  for (const ex of [-0.075, 0.075]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.032, 6, 6), eyeMat);
+    eye.position.set(ex, 0.02, 0.175);
+    head.add(eye);
+  }
+
+  // --- arms, reaching ---
+  const armL = limb(0.72, 0.085, fleshMat);
+  const armR = limb(0.72, 0.085, fleshMat);
+  armL.position.set(-0.3, 0.58, 0);
+  armR.position.set(0.3, 0.58, 0);
+  // One in six has lost an arm somewhere.
+  const missing = Math.random() < 0.16 ? (Math.random() < 0.5 ? armL : armR) : null;
+  for (const arm of [armL, armR]) if (arm !== missing) upper.add(arm);
+  if (missing) {
+    const stump = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.16, 3, 6), fleshMat);
+    stump.position.set(missing === armL ? -0.3 : 0.3, 0.5, 0);
+    upper.add(stump);
+  }
+
+  const hand = new THREE.Group(); // unused for zombies, keeps the rig uniform
+  armR.add(hand);
+
+  group.visible = false;
+  return { group, upper, head, armL, armR, legL, legR, flesh: [fleshMat, faceMat], hand };
+}
+
+/** The player: same jointed rig, kitted out, with a weapon socket in the hands. */
+export function makePlayerRig(): CharacterRig {
+  const group = new THREE.Group();
+  const gear = new THREE.MeshStandardMaterial({ color: 0x33465c, roughness: 0.6, metalness: 0.2, transparent: true });
+  const webbing = new THREE.MeshStandardMaterial({ color: 0x232b33, roughness: 0.85, transparent: true });
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xc7a488, roughness: 0.7, transparent: true });
+  const trousers = new THREE.MeshStandardMaterial({ color: 0x2b3440, roughness: 0.9, transparent: true });
+
+  const legL = limb(0.9, 0.13, trousers);
+  const legR = limb(0.9, 0.13, trousers);
+  legL.position.set(-0.17, 0.95, 0);
+  legR.position.set(0.17, 0.95, 0);
+  group.add(legL, legR);
+  for (const leg of [legL, legR]) {
+    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.13, 0.32), webbing);
+    boot.position.set(0, -0.9, 0.05);
+    boot.castShadow = true;
+    leg.add(boot);
+  }
+
+  const upper = new THREE.Group();
+  upper.position.y = 0.95;
+  group.add(upper);
+
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.29, 0.5, 5, 12), gear);
+  torso.position.y = 0.3;
+  torso.castShadow = true;
+  upper.add(torso);
+  // Plate carrier + pouches, so the silhouette is not a bare capsule.
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.44, 0.34), webbing);
+  plate.position.y = 0.36;
+  plate.castShadow = true;
+  upper.add(plate);
+  for (const px of [-0.14, 0.14]) {
+    const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.1), webbing);
+    pouch.position.set(px, 0.13, 0.2);
+    upper.add(pouch);
+  }
+
+  const head = new THREE.Group();
+  head.position.y = 0.75;
+  upper.add(head);
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 12), skinMat);
+  skull.castShadow = true;
+  head.add(skull);
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.245, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.58), webbing);
+  helmet.position.y = 0.02;
+  helmet.castShadow = true;
+  head.add(helmet);
+
+  const armL = limb(0.74, 0.1, gear);
+  const armR = limb(0.74, 0.1, gear);
+  armL.position.set(-0.33, 0.6, 0);
+  armR.position.set(0.33, 0.6, 0);
+  upper.add(armL, armR);
+
+  // Weapon socket. Pinned to the torso rather than the hand: both arms are posed
+  // to converge on it, which reads correctly at chase-camera distance and avoids
+  // needing any inverse kinematics.
+  const hand = new THREE.Group();
+  hand.position.set(0.17, 0.44, 0.34);
+  upper.add(hand);
+
+  return {
+    group,
+    upper,
+    head,
+    armL,
+    armR,
+    legL,
+    legR,
+    flesh: [gear, skinMat, webbing, trousers],
+    hand,
+  };
+}
+
+/**
+ * A weapon silhouette built from its stats rather than its name: long barrel for
+ * long range, a drum for a big magazine, wide muzzle for buckshot. Any weapon
+ * added later gets a sensible model for free.
+ */
+export function makeWeaponMesh(def: WeaponDef): THREE.Group {
+  const g = new THREE.Group();
+  const metal = new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: 0.45, metalness: 0.75 });
+  const furniture = new THREE.MeshStandardMaterial({ color: 0x2a2622, roughness: 0.8, metalness: 0.1 });
+
+  const long = def.range > 45;
+  const barrelLen = long ? 0.62 : 0.24;
+  const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.16, long ? 0.46 : 0.24), metal);
+  receiver.position.z = long ? 0.1 : 0.04;
+  g.add(receiver);
+
+  const barrel = new THREE.Mesh(
+    new THREE.CylinderGeometry(def.pellets > 1 ? 0.035 : 0.022, def.pellets > 1 ? 0.035 : 0.022, barrelLen, 8),
+    metal,
+  );
+  barrel.rotation.x = Math.PI / 2;
+  barrel.position.z = (long ? 0.33 : 0.16) + barrelLen / 2 - 0.1;
+  g.add(barrel);
+
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.19, 0.09), furniture);
+  grip.position.set(0, -0.14, long ? -0.02 : 0);
+  grip.rotation.x = -0.22;
+  g.add(grip);
+
+  if (long) {
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.13, 0.3), furniture);
+    stock.position.set(0, -0.03, -0.26);
+    g.add(stock);
+  }
+  if (def.magSize > 40) {
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.07, 12), metal);
+    drum.rotation.z = Math.PI / 2;
+    drum.position.set(0, -0.13, 0.06);
+    g.add(drum);
+  } else if (def.magSize > 10) {
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 0.08), metal);
+    mag.position.set(0, -0.15, 0.06);
+    mag.rotation.x = 0.12;
+    g.add(mag);
+  }
+  if (def.range > 90) {
+    const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.26, 8), metal);
+    scope.rotation.x = Math.PI / 2;
+    scope.position.set(0, 0.12, 0.12);
+    g.add(scope);
+  }
+
+  for (const child of g.children) child.castShadow = true;
+  // Muzzle flash, hidden until the shot.
+  const flash = new THREE.Mesh(
+    new THREE.ConeGeometry(0.09, 0.28, 6),
+    new THREE.MeshBasicMaterial({ color: 0xffd489, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }),
+  );
+  flash.name = "flash";
+  flash.rotation.x = Math.PI / 2;
+  flash.position.z = (long ? 0.33 : 0.16) + barrelLen - 0.02;
+  flash.visible = false;
+  g.add(flash);
+  return g;
+}
+
+/** Blood burst used for hits and kills — recycled, never reallocated. */
+export function makeBloodBurst(count: number): THREE.Points {
+  const pos = new Float32Array(count * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({
+    size: 0.13,
+    map: dotTexture(),
+    color: 0x8e1616,
+    transparent: true,
+    opacity: 0.95,
+    depthWrite: false,
+    sizeAttenuation: true,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false;
+  pts.visible = false;
+  return pts;
+}
+
+// ---------- decals: graffiti, stencils, stains ----------
+
+const TAG_FONTS = ['bold 74px "Rajdhani", Impact, sans-serif', 'bold 66px "Rajdhani", Impact, sans-serif'];
+
+/** Spray-paint drips running down from a painted shape. */
+function drips(g: CanvasRenderingContext2D, s: number, color: string, count: number): void {
+  g.fillStyle = color;
+  for (let i = 0; i < count; i++) {
+    const x = Math.random() * s;
+    const y = s * (0.35 + Math.random() * 0.3);
+    g.fillRect(x, y, 2 + Math.random() * 2, Math.random() * s * 0.3);
+  }
+}
+
+/** Overspray speckle around a sprayed mark. */
+function overspray(g: CanvasRenderingContext2D, s: number, color: string, count: number): void {
+  for (let i = 0; i < count; i++) {
+    g.globalAlpha = 0.1 + Math.random() * 0.35;
+    g.fillStyle = color;
+    g.fillRect(Math.random() * s, Math.random() * s, 1 + Math.random() * 2, 1 + Math.random() * 2);
+  }
+  g.globalAlpha = 1;
+}
+
+/**
+ * A transparent decal texture. Everything is drawn with rough edges, drips and
+ * overspray — clean vector marks on a filthy concrete wall read as UI, not paint.
+ */
+function decalTexture(kind: DecalKind, text: string, colorHex: number): THREE.Texture {
+  const S = 256;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const g = c.getContext("2d")!;
+  const color = "#" + (colorHex & 0xffffff).toString(16).padStart(6, "0");
+  g.clearRect(0, 0, S, S);
+
+  switch (kind) {
+    case "tag": {
+      g.save();
+      g.translate(S / 2, S / 2);
+      g.rotate((Math.random() - 0.5) * 0.16);
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      const lines = text.split("\n");
+      g.font = TAG_FONTS[lines.length > 1 ? 1 : 0];
+      g.lineWidth = 7;
+      g.strokeStyle = "rgba(0,0,0,0.45)";
+      g.fillStyle = color;
+      lines.forEach((line, i) => {
+        const y = (i - (lines.length - 1) / 2) * 70;
+        g.strokeText(line, 0, y);
+        g.fillText(line, 0, y);
+      });
+      g.restore();
+      drips(g, S, color, 16);
+      overspray(g, S, color, 220);
+      break;
+    }
+    case "stencil": {
+      g.fillStyle = color;
+      g.fillRect(14, 92, S - 28, 72);
+      g.globalCompositeOperation = "destination-out";
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.font = 'bold 46px "Rajdhani", Impact, sans-serif';
+      g.fillText(text, S / 2, 128);
+      g.globalCompositeOperation = "source-over";
+      // Chew the edges so it looks sprayed through card, not printed.
+      g.globalCompositeOperation = "destination-out";
+      for (let i = 0; i < 70; i++) g.fillRect(Math.random() * S, 86 + Math.random() * 86, 4 + Math.random() * 8, 3 + Math.random() * 6);
+      g.globalCompositeOperation = "source-over";
+      overspray(g, S, color, 160);
+      break;
+    }
+    case "arrow": {
+      g.strokeStyle = color;
+      g.lineWidth = 16;
+      g.lineCap = "round";
+      g.beginPath();
+      g.moveTo(36, S / 2);
+      g.lineTo(S - 54, S / 2);
+      g.moveTo(S - 110, S / 2 - 56);
+      g.lineTo(S - 44, S / 2);
+      g.lineTo(S - 110, S / 2 + 56);
+      g.stroke();
+      drips(g, S, color, 10);
+      overspray(g, S, color, 150);
+      break;
+    }
+    case "tally": {
+      // Days survived, scratched into the concrete five at a time.
+      g.strokeStyle = color;
+      g.lineWidth = 5;
+      g.lineCap = "round";
+      const groups = 5;
+      for (let gi = 0; gi < groups; gi++) {
+        const ox = 26 + (gi % 3) * 78;
+        const oy = 60 + Math.floor(gi / 3) * 96;
+        for (let i = 0; i < 4; i++) {
+          g.beginPath();
+          g.moveTo(ox + i * 13 + Math.random() * 3, oy);
+          g.lineTo(ox + i * 13 + Math.random() * 5, oy + 62);
+          g.stroke();
+        }
+        g.beginPath();
+        g.moveTo(ox - 6, oy + 56);
+        g.lineTo(ox + 50, oy + 6);
+        g.stroke();
+      }
+      break;
+    }
+    case "biohazard": {
+      g.strokeStyle = color;
+      g.fillStyle = color;
+      g.lineWidth = 12;
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2 - Math.PI / 2;
+        const cx = S / 2 + Math.cos(a) * 52;
+        const cy = S / 2 + Math.sin(a) * 52;
+        g.beginPath();
+        g.arc(cx, cy, 42, a - 2.0, a + 2.0);
+        g.stroke();
+      }
+      g.beginPath();
+      g.arc(S / 2, S / 2, 24, 0, Math.PI * 2);
+      g.fill();
+      overspray(g, S, color, 120);
+      break;
+    }
+    case "blood": {
+      // Sprayed arterial pattern: one impact, a spatter halo, a few runs.
+      const base = "#5e0d0d";
+      g.fillStyle = base;
+      g.beginPath();
+      g.ellipse(S / 2, S / 2, 62, 48, Math.random(), 0, Math.PI * 2);
+      g.fill();
+      for (let i = 0; i < 140; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = 40 + Math.random() * 100;
+        g.globalAlpha = 0.35 + Math.random() * 0.5;
+        g.beginPath();
+        g.arc(S / 2 + Math.cos(a) * r, S / 2 + Math.sin(a) * r, 1 + Math.random() * 6, 0, Math.PI * 2);
+        g.fill();
+      }
+      g.globalAlpha = 1;
+      drips(g, S, base, 12);
+      break;
+    }
+    case "scorch": {
+      const grad = g.createRadialGradient(S / 2, S / 2, 6, S / 2, S / 2, S / 2);
+      grad.addColorStop(0, "rgba(10,9,8,0.92)");
+      grad.addColorStop(0.55, "rgba(24,20,17,0.55)");
+      grad.addColorStop(1, "rgba(30,26,22,0)");
+      g.fillStyle = grad;
+      g.fillRect(0, 0, S, S);
+      overspray(g, S, "#0c0a08", 200);
+      break;
+    }
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/**
+ * A decal quad. Wall decals stand upright facing `rot`; ground decals (height 0)
+ * lie flat. Both are pushed a few centimetres off the surface and rendered with
+ * a polygon offset so they never z-fight with the wall behind them.
+ */
+export function makeDecalMesh(def: DecalDef): THREE.Mesh {
+  const size = (def.scale ?? 1) * (def.kind === "blood" || def.kind === "scorch" ? 2.6 : 1.8);
+  const tex = decalTexture(def.kind, def.text ?? "", def.color ?? DECAL_COLORS[def.kind]);
+  const mat = new THREE.MeshStandardMaterial({
+    map: tex,
+    transparent: true,
+    roughness: 0.95,
+    metalness: 0,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+  mesh.renderOrder = 1;
+  return mesh;
+}
+
+/** Default ink per decal kind — overridable per placement. */
+export const DECAL_COLORS: Record<DecalKind, number> = {
+  tag: 0xd8452c,
+  stencil: 0xe8e2d2,
+  arrow: 0xf0c033,
+  tally: 0x2a2622,
+  biohazard: 0xd8b32a,
+  blood: 0x5e0d0d,
+  scorch: 0x141210,
+};

@@ -142,6 +142,8 @@ export interface MapDef {
   props?: PropDef[];
   /** Coloured point lights for atmosphere. */
   lights?: PointLightDef[];
+  /** Graffiti, stencils and stains sprayed on walls and floors. */
+  decals?: DecalDef[];
 }
 
 // ---- Terrain ----
@@ -208,6 +210,7 @@ export type PropKind =
   | "deadTree"
   | "wreck"
   // Compound structure and machinery.
+  | "blockhouse"
   | "fence"
   | "generator"
   | "tank"
@@ -233,6 +236,30 @@ export interface PropDef {
    *  kinds are pass-through, everything else is solid). */
   solid?: boolean;
   /** Optional colour override (hex) — used for crates and containers. */
+  color?: number;
+}
+
+// ---- Decals ----
+
+/** What is sprayed, scratched or spilled. */
+export type DecalKind = "tag" | "stencil" | "arrow" | "tally" | "biohazard" | "blood" | "scorch";
+
+/**
+ * A flat mark on a wall or the floor. Purely cosmetic — decals have no collider
+ * and the simulation never sees them — but they are what turns a grey wall into
+ * somewhere people were, so place them where the story happened: beside doors,
+ * over barriers, around the bodies.
+ */
+export interface DecalDef {
+  kind: DecalKind;
+  pos: Vec2;
+  /** Which way it faces, in radians. Ignored when it lies flat on the floor. */
+  rot?: number;
+  /** Centre height above the ground; `0` lays it flat. Default 1.5. */
+  height?: number;
+  scale?: number;
+  /** Text for `tag` and `stencil`. A newline splits it over two lines. */
+  text?: string;
   color?: number;
 }
 

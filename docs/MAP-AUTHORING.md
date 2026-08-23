@@ -180,6 +180,7 @@ adding a kind means describing its shape there once rather than in each consumer
 | `container` | 3.0×1.2 | 2.4 | big sight-blocker; `color` tints it; too tall to mount |
 | `wreck` | 2.2×1.0 | 1.15 | burnt-out car, **smokes**; jump-on |
 | `deadTree` | 0.6² | 4.6 | silhouette; good outside the wire |
+| `blockhouse` | 4.0×3.6 | 3.0 | **walk-in shelter**: four walls, a 2.2-wide doorway on its `rot` face, lit inside |
 | `fence` | 3.2×0.16 | 2.4 | chain-link + barbed wire; **see-through but solid** — leave gaps |
 | `generator` | 2.2×1.2 | 1.4 | glowing status LED (no cast light) |
 | `tank` | 1.9² | 4.2 | fuel silo with a ladder |
@@ -199,6 +200,27 @@ light count of a map never changes what the GPU pays. Glow, haze cone and flame
 animate on every fixture regardless - only the cast light is pooled. Self-lit
 detail with no cast light at all (`generator` LED, `antenna` beacon) is cheaper
 still.
+
+### `decals` — `DecalDef[]` (optional)
+`{ kind, pos, rot?, height?, scale?, text?, color? }`. Graffiti, stencils, tally
+marks, biohazard symbols, blood and scorch marks. No collider, no simulation
+involvement — but they are what makes a compound feel like somewhere people were,
+so put them where the story happened rather than spreading them evenly.
+
+- `kind`: `"tag"` (dripping spray paint, uses `text`, `\n` splits two lines),
+  `"stencil"` (sprayed-through block lettering, uses `text`), `"arrow"`,
+  `"tally"` (days scratched off), `"biohazard"`, `"blood"`, `"scorch"`.
+- `rot` is the direction the decal **faces** — point it away from the wall and
+  into the room, the same convention props use. A wall at `y = -18` with the room
+  to its south faces `+y`, so `rot: 1.5708`.
+- `height` is the centre above the ground; **`0` lays it flat on the floor**,
+  which is what blood and scorch marks want. Keep wall decals at or below `2.0`
+  so they do not ride over the top of a 2.6-unit wall.
+- Sit wall decals ~0.15 in front of the wall face (`y: -17.85` for that wall) so
+  they are not inside it.
+
+Only floor decals appear in the 2D view, faintly — wall graffiti has no meaning
+in a top-down tactical read.
 
 ### `lights` — `PointLightDef[]` (optional)
 `{ pos, color, intensity, range, height? }`. Prefer **diegetic** light from
@@ -249,6 +271,8 @@ it.
 - [ ] Every wing has its own `playBounds` rect, on the inner wall faces, overlapping its neighbour by >0.9 at the doorway.
 - [ ] Every region a door unlocks has at least one barrier and one wall-buy.
 - [ ] No solid prop is buried in a wall.
+- [ ] Walk-in props (`blockhouse`) sit on a `flatZone` so no daylight shows under a wall.
+- [ ] Wall decals face into the room, sit ~0.15 off the wall, and stay under 2.0 high.
 
 ## Verify
 

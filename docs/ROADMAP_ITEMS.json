@@ -28,6 +28,13 @@
     "details": "Address playtest feedback: rotated props now collide as oriented boxes and round props as discs so bounding-box corners stop acting as invisible walls; multi-part props such as the guard tower collide as their legs; the chase camera pulls in and fades the player when geometry is behind them; keyboard turning (Q/E and arrows) plus persisted look-sensitivity, turn-speed and invert-Y settings in the pause menu make the game playable on a trackpad. Also fixes a player cage whose wing rects did not overlap, which made the substation and cold store doors impassable."
   },
   {
+    "id": "phase-1-character-and-scene-detail",
+    "title": "Animate characters and add scene storytelling detail",
+    "phase": "Phase 1",
+    "status": "done",
+    "details": "Replace the capsule zombies and player with jointed rigs the renderer animates: walk cycles driven by distance travelled, zombie lurch/grab/collapse, per-body variation in height, skin, clothing and missing limbs, blood spray on hits, and a player weapon model derived from weapon stats with recoil and muzzle flash. Adds a map decals layer (graffiti tags, sprayed stencils, tally marks, biohazard symbols, blood and scorch stains), walk-in blockhouse shelters, and real door models with keypads and price signs. Escape now reliably pauses by watching for pointer-lock loss, since browsers consume that keydown."
+  },
+  {
     "id": "phase-1-map-select-menu",
     "title": "Ship map-select menu",
     "phase": "Phase 1",

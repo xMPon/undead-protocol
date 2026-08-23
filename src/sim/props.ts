@@ -55,6 +55,23 @@ export const PROP_SPECS: Record<PropKind, PropSpec> = {
   wreck: { hx: 1.1, hy: 0.5, height: 1.15, color: 0x2b2724 },
 
   // --- Compound structure and machinery ---
+  // A walk-in outbuilding: four walls with a 2.2-wide doorway on its +x face.
+  // The doorway has to stay wide enough for the 0.8-unit flow-field grid to keep
+  // a walkable cell through it, or zombies will not follow you inside.
+  blockhouse: {
+    hx: 2.0,
+    hy: 1.8,
+    height: 3.0,
+    color: 0x6a6963,
+    emits: true,
+    parts: [
+      { dx: -1.85, dy: 0, hx: 0.15, hy: 1.8 },
+      { dx: 0, dy: -1.65, hx: 2.0, hy: 0.15 },
+      { dx: 0, dy: 1.65, hx: 2.0, hy: 0.15 },
+      { dx: 1.85, dy: -1.45, hx: 0.15, hy: 0.35 },
+      { dx: 1.85, dy: 1.45, hx: 0.15, hy: 0.35 },
+    ],
+  },
   fence: { hx: 1.6, hy: 0.08, height: 2.4, color: 0x6b7076 },
   generator: { hx: 1.1, hy: 0.6, height: 1.4, color: 0x5a6a4a },
   tank: { hx: 0.95, hy: 0.95, height: 4.2, color: 0x7d7f78, round: true },
