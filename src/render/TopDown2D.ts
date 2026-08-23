@@ -5,11 +5,33 @@
 import type { Renderer } from "./Renderer";
 import type { World } from "../sim/World";
 import type { Input } from "../core/Input";
-import type { Intent } from "../sim/types";
+import type { Intent, GroundKind } from "../sim/types";
 import { emptyIntent } from "../sim/types";
+import { PROP_SPECS } from "../sim/props";
 import { getWeapon } from "../data/weapons";
 
-const SCALE = 26; // pixels per world unit
+const SCALE = 18; // pixels per world unit
+
+// Base RGB per ground kind for the 2D hillshade.
+const GROUND2D: Record<GroundKind, [number, number, number]> = {
+  concrete: [40, 46, 44],
+  snow: [150, 165, 185],
+  sand: [120, 100, 66],
+  dock: [42, 50, 52],
+  quarry: [80, 72, 60],
+  grass: [40, 52, 34],
+};
+
+const PROP2D: Record<string, string> = {
+  crate: "#6b4f2a",
+  barrel: "#6e4a2a",
+  rock: "#565550",
+  sandbag: "#8a7a4a",
+  container: "#3a6a8a",
+};
+
+const hex = (n: number): string => "#" + (n & 0xffffff).toString(16).padStart(6, "0");
+const rgba = (n: number, a: number): string => `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 
 export class TopDown2D implements Renderer {
   readonly name = "2d" as const;
@@ -51,8 +73,13 @@ export class TopDown2D implements Renderer {
     ctx.fillRect(0, 0, this.w, this.h);
 
     this.worldTransform();
+    this.drawTerrain(world);
     this.drawGrid(world);
+    ctx.globalCompositeOperation = "lighter";
+    this.drawLights(world);
+    ctx.globalCompositeOperation = "source-over";
     this.drawWalls(world);
+    this.drawProps(world);
     this.drawBarriers(world);
     this.drawWallBuys(world);
     this.drawTracers(world);
@@ -62,6 +89,84 @@ export class TopDown2D implements Renderer {
     // Screen-space labels for wall-buys.
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.drawLabels(world);
+  }
+
+  private drawTerrain(world: World): void {
+    const ctx = this.ctx;
+    const b = world.def.bounds;
+    const base = GROUND2D[world.def.theme?.ground ?? "concrete"];
+    const step = 1.0;
+    for (let y = b.minY; y < b.maxY; y += step) {
+      for (let x = b.minX; x < b.maxX; x += step) {
+        const cx = x + step / 2;
+        const cy = y + step / 2;
+        const h = world.terrain.heightAt(cx, cy);
+        // Slope shading: brighten west-facing, darken east-facing.
+        const hx = world.terrain.heightAt(cx + 0.5, cy) - world.terrain.heightAt(cx - 0.5, cy);
+        const f = Math.max(0.4, Math.min(1.35, 0.72 + h * 0.12 - hx * 0.6));
+        ctx.fillStyle = `rgb(${(base[0] * f) | 0},${(base[1] * f) | 0},${(base[2] * f) | 0})`;
+        ctx.fillRect(x, y, step + 0.03, step + 0.03);
+      }
+    }
+  }
+
+  private glow(x: number, y: number, r: number, color: number, a: number): void {
+    const ctx = this.ctx;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, rgba(color, a));
+    g.addColorStop(1, rgba(color, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  private drawLights(world: World): void {
+    // Explicit atmosphere lights.
+    for (const L of world.def.lights ?? []) this.glow(L.pos.x, L.pos.y, L.range * 0.5, L.color, 0.5);
+    // Lamps and car headlights emit their own glow.
+    for (const p of world.def.props ?? []) {
+      if (p.kind === "lamp") {
+        this.glow(p.pos.x, p.pos.y, 10 * (p.scale ?? 1), p.color ?? PROP_SPECS.lamp.color, 0.5);
+      } else if (p.kind === "car") {
+        const rot = p.rot ?? 0;
+        const dx = Math.cos(rot);
+        const dy = Math.sin(rot);
+        this.glow(p.pos.x + dx * 4, p.pos.y + dy * 4, 7, 0xfff4e0, 0.45);
+      }
+    }
+  }
+
+  private drawProps(world: World): void {
+    const ctx = this.ctx;
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.lineWidth = 0.06;
+    for (const p of world.def.props ?? []) {
+      const s = p.scale ?? 1;
+      const spec = PROP_SPECS[p.kind];
+      const col = p.color !== undefined ? hex(p.color) : PROP2D[p.kind] ?? hex(spec.color);
+      ctx.save();
+      ctx.translate(p.pos.x, p.pos.y);
+      ctx.rotate(p.rot ?? 0);
+      ctx.fillStyle = col;
+      if (p.kind === "barrel" || p.kind === "lamp") {
+        ctx.beginPath();
+        ctx.arc(0, 0, spec.hx * s, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        const hx = spec.hx * s;
+        const hy = spec.hy * s;
+        ctx.fillRect(-hx, -hy, hx * 2, hy * 2);
+        ctx.strokeRect(-hx, -hy, hx * 2, hy * 2);
+        // Headlight hint on the car's front face.
+        if (p.kind === "car") {
+          ctx.fillStyle = "#fff4e0";
+          ctx.fillRect(hx - 0.12 * s, -hy, 0.12 * s, hy * 2);
+        }
+      }
+      ctx.restore();
+    }
   }
 
   private drawGrid(world: World): void {
@@ -144,9 +249,23 @@ export class TopDown2D implements Renderer {
     ctx.stroke();
   }
 
+  /** Shadow + upward screen offset that fakes an entity's jump height. */
+  private liftOf(world: World, x: number, y: number, footY: number, radius: number): number {
+    const lift = Math.max(0, footY - world.terrain.heightAt(x, y));
+    if (lift > 0.05) {
+      const ctx = this.ctx;
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.beginPath();
+      ctx.ellipse(x, y, radius * 0.9, radius * 0.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    return -lift * 0.6;
+  }
+
   private drawZombies(world: World): void {
     const ctx = this.ctx;
     for (const z of world.zombies) {
+      const oy = z.isDead ? 0 : this.liftOf(world, z.pos.x, z.pos.y, z.footY, z.radius);
       ctx.save();
       let alpha = 1;
       if (z.isDead) alpha = Math.max(0, 1 - z.deadTimer / 0.6);
@@ -156,15 +275,15 @@ export class TopDown2D implements Renderer {
       const g = Math.floor(120 + flash * 100);
       ctx.fillStyle = z.isDead ? "#4a4a44" : `rgb(${60 + flash * 160},${g},${60})`;
       ctx.beginPath();
-      ctx.arc(z.pos.x, z.pos.y, z.radius, 0, Math.PI * 2);
+      ctx.arc(z.pos.x, z.pos.y + oy, z.radius, 0, Math.PI * 2);
       ctx.fill();
       // facing tick
       if (!z.isDead) {
         ctx.strokeStyle = "#1a2a12";
         ctx.lineWidth = 0.12;
         ctx.beginPath();
-        ctx.moveTo(z.pos.x, z.pos.y);
-        ctx.lineTo(z.pos.x + Math.cos(z.facing) * z.radius, z.pos.y + Math.sin(z.facing) * z.radius);
+        ctx.moveTo(z.pos.x, z.pos.y + oy);
+        ctx.lineTo(z.pos.x + Math.cos(z.facing) * z.radius, z.pos.y + oy + Math.sin(z.facing) * z.radius);
         ctx.stroke();
         // health ring
         const frac = z.health / z.maxHealth;
@@ -172,7 +291,7 @@ export class TopDown2D implements Renderer {
           ctx.strokeStyle = "#e23b3b";
           ctx.lineWidth = 0.1;
           ctx.beginPath();
-          ctx.arc(z.pos.x, z.pos.y, z.radius + 0.15, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
+          ctx.arc(z.pos.x, z.pos.y + oy, z.radius + 0.15, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
           ctx.stroke();
         }
       }
@@ -183,16 +302,17 @@ export class TopDown2D implements Renderer {
   private drawPlayer(world: World): void {
     const ctx = this.ctx;
     const p = world.player;
+    const oy = this.liftOf(world, p.pos.x, p.pos.y, p.footY, p.radius);
     ctx.fillStyle = "#4a7bd6";
     ctx.beginPath();
-    ctx.arc(p.pos.x, p.pos.y, p.radius, 0, Math.PI * 2);
+    ctx.arc(p.pos.x, p.pos.y + oy, p.radius, 0, Math.PI * 2);
     ctx.fill();
     // gun barrel / aim line
     ctx.strokeStyle = "#eef2ff";
     ctx.lineWidth = 0.14;
     ctx.beginPath();
-    ctx.moveTo(p.pos.x, p.pos.y);
-    ctx.lineTo(p.pos.x + Math.cos(p.aim) * 1.1, p.pos.y + Math.sin(p.aim) * 1.1);
+    ctx.moveTo(p.pos.x, p.pos.y + oy);
+    ctx.lineTo(p.pos.x + Math.cos(p.aim) * 1.1, p.pos.y + oy + Math.sin(p.aim) * 1.1);
     ctx.stroke();
   }
 
@@ -214,6 +334,7 @@ export class TopDown2D implements Renderer {
     intent.reload = input.isDown("KeyR");
     intent.interact = input.isDown("KeyF");
     intent.sprint = input.isDown("ShiftLeft") || input.isDown("ShiftRight");
+    intent.jump = input.isDown("Space");
     if (input.wasPressed("Digit1")) intent.switchTo = 0;
     else if (input.wasPressed("Digit2")) intent.switchTo = 1;
     return intent;
