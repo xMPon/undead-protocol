@@ -74,6 +74,55 @@ describe.each(MAPS)("%s map data", (_name, def) => {
     }
   });
 
+  it("keeps solid props out of the walls", () => {
+    for (const p of solidProps(def)) {
+      const r = propRect(p);
+      for (const w of def.walls) {
+        const ox = Math.min(r.maxX, w.maxX) - Math.max(r.minX, w.minX);
+        const oy = Math.min(r.maxY, w.maxY) - Math.max(r.minY, w.minY);
+        expect.soft(ox > 0.05 && oy > 0.05, `${p.kind} at ${p.pos.x},${p.pos.y} is buried in a wall`).toBe(false);
+      }
+    }
+  });
+
+  it("cages the player around everything they have to reach", () => {
+    const zones = def.playBounds ?? [];
+    expect(zones.length).toBeGreaterThan(0);
+    const caged = (v: Vec2): boolean =>
+      zones.some(
+        (z) =>
+          v.x >= z.minX + PLAYER_RADIUS &&
+          v.x <= z.maxX - PLAYER_RADIUS &&
+          v.y >= z.minY + PLAYER_RADIUS &&
+          v.y <= z.maxY - PLAYER_RADIUS,
+      );
+    const mustReach: Array<[string, Vec2]> = [
+      ["spawn", def.playerSpawn],
+      ...def.wallBuys.map((w) => [`${w.weaponId} buy`, w.pos] as [string, Vec2]),
+      ...def.doors.map((d) => [d.id, d.pos] as [string, Vec2]),
+    ];
+    for (const [what, v] of mustReach) {
+      expect.soft(caged(v), `${what} at ${v.x},${v.y} sits outside playBounds`).toBe(true);
+    }
+  });
+
+  it("anchors each door prompt on the wall it removes", () => {
+    for (const d of def.doors) {
+      const centre = { x: (d.blocks.minX + d.blocks.maxX) / 2, y: (d.blocks.minY + d.blocks.maxY) / 2 };
+      const gap = Math.hypot(d.pos.x - centre.x, d.pos.y - centre.y);
+      expect.soft(gap, `${d.id} prompt is nowhere near its blocking wall`).toBeLessThanOrEqual(INTERACT_RANGE);
+    }
+  });
+
+  it("gives every unlocked region something to do", () => {
+    const opened = def.doors.map((d) => d.opensRegion);
+    expect(new Set(opened).size, "two doors unlock the same region").toBe(opened.length);
+    for (const region of opened) {
+      expect.soft(def.barriers.some((b) => b.region === region), `region ${region} has no barrier`).toBe(true);
+      expect.soft(def.wallBuys.some((w) => w.region === region), `region ${region} has no wall-buy`).toBe(true);
+    }
+  });
+
   it("only feeds solid props into collision", () => {
     const map = new GameMap(def);
     expect(map.walls.length).toBe(def.walls.length + def.doors.length + solidProps(def).length);

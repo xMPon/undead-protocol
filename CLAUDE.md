@@ -44,10 +44,10 @@ changes nothing about game state.
 | `sim/Weapons.ts` | fire/reload/ammo mechanics on a `WeaponInstance` (pure) |
 | `sim/Economy.ts` | points award/spend rules (pure) |
 | `sim/Map.ts` | runtime map: door/region state + current collision walls (incl. solid props) |
-| `sim/collision.ts` | circle-vs-rect + **height-aware obstacle** resolution, `supportHeight`, ray casts (pure) |
+| `sim/collision.ts` | circle-vs-rect + **height-aware obstacle** resolution, `supportHeight`, ray casts, `clampToZones` player cage (pure) |
 | `sim/pathing.ts` | BFS flow-field toward the player; zombies sample its gradient |
 | `render/Renderer.ts` | the interface both views implement (`render`/`buildIntent`/…) |
-| `render/ThirdPerson3D.ts` | Three.js view: displaced terrain, sun **shadows** + ACES tone mapping, entity jump lift, the diegetic light rig (lights + haze cones + flicker) and atmosphere (fire, smoke, dust, stars) |
+| `render/ThirdPerson3D.ts` | Three.js view: displaced terrain, sun **shadows** + ACES tone mapping, entity jump lift, the diegetic light rig (a fixed 14-light pool handed to the nearest fixtures + haze cones + flicker) and atmosphere (fire, smoke, dust, stars) |
 | `render/TopDown2D.ts` | Canvas 2D top-down: terrain hillshade, prop footprints (dressing drawn faint), light glows, jump shadows |
 | `render/ViewManager.ts` | holds both renderers, keeps one visible, toggles them |
 | `render/procgen.ts` | procedural PBR-ish materials (albedo + **normal maps**), terrain mesh, sky dome, prop meshes — no asset files |
@@ -118,6 +118,10 @@ face **local +x along `rot`** in both views; keep new meshes to that convention.
   puddles), pass-through `decor` props, fake-volumetric light shafts, lamp
   flicker, animated fire + smoke + dust + stars, and `tests/map.test.ts` map
   integrity checks.
+  **Four-region Blacksite:** the substation (1000, off spawn) and the cold store
+  (1250, behind the vault), each with barriers, terrain, dressing and a wall-buy
+  (Lancer-7 and Havoc-9); `playBounds` is a union of per-wing rects so a compound
+  no longer has to be one box; doors are named in the prompt and get a mesh each.
   **Remaining:** the four other maps + a map-select menu.
 - **Phase 2:** perks (Ironhide / Rapid Rounds / Fast Hands / Second Wind), the
   Mystery Box ("The Cache"), grenades, ADS, more map regions, board-up barriers.

@@ -14,6 +14,13 @@
     "details": "Add sixteen prop kinds (fence, jersey barrier, pipe, pallet, dumpster, tank, generator, guard tower, comms mast, floodlight, fire barrel, wreck, rubble, dead tree, cone, sign, puddle), pass-through decor props, volumetric light shafts, lamp flicker, animated fire/smoke/dust/stars, and map data-integrity tests. Dresses Blacksite as a working compound without changing how it plays."
   },
   {
+    "id": "phase-1-blacksite-extra-regions",
+    "title": "Add substation and cold store regions to Blacksite",
+    "phase": "Phase 1",
+    "status": "done",
+    "details": "Extend Blacksite from two regions to four: a substation opening off the spawn yard for 1000 points and a cold store behind the vault for 1250, each with its own barriers, terrain, dressing and wall-buy (Lancer-7 and Havoc-9). Makes playBounds a union of per-wing rects, names doors in the HUD prompt, renders a mesh per door, and pools the 3D point lights so room count no longer drives GPU cost."
+  },
+  {
     "id": "phase-1-map-select-menu",
     "title": "Ship map-select menu",
     "phase": "Phase 1",

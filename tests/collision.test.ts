@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  clampToZones,
   rayVsCircle,
   rayVsRect,
   resolveCircleRects,
@@ -84,5 +85,36 @@ describe("height-aware obstacles (jumping)", () => {
 
   it("supportHeight falls back to the ground beside the crate", () => {
     expect(supportHeight({ x: 2, y: 0 }, 0, 0, [crate])).toBe(0);
+  });
+});
+
+describe("clampToZones", () => {
+  // Two wings that overlap in a 1-unit band, the way a map's doorway joins them.
+  const north = { minX: 0, minY: 0, maxX: 20, maxY: 10 };
+  const south = { minX: 4, minY: 9, maxX: 16, maxY: 30 };
+  const R = 0.5;
+
+  it("leaves a position that already fits somewhere untouched", () => {
+    const p = { x: 10, y: 5 };
+    expect(clampToZones(p, R, [north, south])).toBe(p);
+    expect(clampToZones({ x: 10, y: 25 }, R, [north, south])).toEqual({ x: 10, y: 25 });
+  });
+
+  it("keeps the doorway band legal so crossing never snaps you back", () => {
+    for (let y = 8; y <= 11; y += 0.25) {
+      expect(clampToZones({ x: 10, y }, R, [north, south])).toEqual({ x: 10, y });
+    }
+  });
+
+  it("pulls an escaped position into the nearest zone", () => {
+    expect(clampToZones({ x: 10, y: -4 }, R, [north, south])).toEqual({ x: 10, y: 0.5 });
+    expect(clampToZones({ x: 25, y: 5 }, R, [north, south])).toEqual({ x: 19.5, y: 5 });
+  });
+
+  it("recovers into whichever zone is nearest, not the one you came from", () => {
+    // (1,20) is beside the south wing, in the notch neither zone covers. The
+    // shortest way back in is sideways into `south`, and that is what it picks —
+    // this only ever fires as a backstop, since walls stop the player first.
+    expect(clampToZones({ x: 1, y: 20 }, R, [north, south])).toEqual({ x: 4.5, y: 20 });
   });
 });

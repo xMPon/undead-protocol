@@ -61,11 +61,21 @@ Where the player starts, and which regions are active at round 1 (region `0` =
 the spawn area). Keep the spawn point on flat ground, clear of walls, props, and
 pits.
 
-### `playBounds`
-The interior rectangle the **player** is clamped to each frame. Zombies ignore
-it, so they can still pour through the barrier gaps while the player can't walk
-out of them. Set it just inside the perimeter walls (Blacksite:
-`x[-25.6, 65.6] y[-17.6, 17.6]`).
+### `playBounds` - `WallRect[]`
+The rectangles the **player** is clamped to each frame - the cage that stops them
+strolling out through a barrier gap. Zombies ignore it entirely, so they still
+pour through those gaps while the player cannot follow.
+
+The player may stand anywhere in the **union**, so a compound with wings lists
+one rect per wing, each sitting just inside that perimeter wall.
+**Connected rects must overlap across their shared doorway** (the southern wings
+of Blacksite start at `y = 17.0`, a unit north of the `y = 18` wall they hang
+off) - otherwise stepping into the doorway is briefly "outside every zone" and
+the clamp yanks the player back. Outside every zone, the player is pulled to the
+nearest point of the nearest rect.
+
+Do not just take the bounding box of the whole map: the only job of the cage is
+to cover the floor the player is allowed on and *nothing else*.
 
 ### `walls` — `WallRect[]`
 Axis-aligned solid rectangles (`{minX,minY,maxX,maxY}`). They block movement and
@@ -89,10 +99,16 @@ spawn. Give each active region at least one.
 wall, reachable, in an active region.
 
 ### `doors` — `DoorDef[]`
-`{ id, pos, cost, blocks, opensRegion }`. Interacting (F) near `pos` with enough
-points removes the `blocks` rectangle from collision and activates
+`{ id, pos, name?, cost, blocks, opensRegion }`. Interacting (F) near `pos` with
+enough points removes the `blocks` rectangle from collision and activates
 `opensRegion` (its barriers + wall-buys go live). `blocks` should exactly fill a
-gap you left in the shared wall.
+gap you left in the wall, and `pos` should sit on it - put `pos` at the centre of
+the gap. `name` is what the HUD prompt calls it ("Open Cold Store"); it falls
+back to "Open Door".
+
+Doors are independent, so a map can branch: the vault and substation of Blacksite
+both open off the spawn yard, while the cold store is only reachable through the
+vault - which makes it the deepest room in both distance and points.
 
 ### `terrain` — `TerrainDef`
 Elevation. **Visual + entity-Y only** — movement stays 2D.
@@ -164,10 +180,12 @@ their height. Kinds marked *decor* are pass-through dressing; `solid: true` /
 | `sign` | 1.2×0.2 | 1.9 | *decor* — hazard board |
 | `puddle` | 2.8×2.0 | — | *decor* — wet, near-mirror; put them in pits and low spots |
 
-Emissive kinds cost a real point light in the 3D view, which a forward renderer
-pays for on every fragment — **keep a map under roughly 20 of them** (Blacksite
-runs ~19). Self-lit detail with no cast light (`generator`, `antenna`) is free,
-so prefer it for decoration.
+Place emissive kinds freely: the 3D view keeps a **fixed pool of 14 point
+lights** and hands them each frame to the fixtures nearest the player, so the
+light count of a map never changes what the GPU pays. Glow, haze cone and flame
+animate on every fixture regardless - only the cast light is pooled. Self-lit
+detail with no cast light at all (`generator` LED, `antenna` beacon) is cheaper
+still.
 
 ### `lights` — `PointLightDef[]` (optional)
 `{ pos, color, intensity, range, height? }`. Prefer **diegetic** light from
@@ -178,9 +196,26 @@ etc.).
 
 ## Regions & progression
 
-Region `0` is live at spawn. Each `door` unlocks one further region. A region's
-`barriers` and `wallBuys` only activate once its region is live — so gate deeper
-areas (and their better guns) behind doors, exactly like Blacksite's vault.
+Region `0` is live at spawn. Each `door` unlocks one further region. The
+`barriers` and `wallBuys` of a region only activate once that region is live - so
+gate deeper areas, and their better guns, behind doors.
+
+Give every region you unlock **at least one barrier and one wall-buy**: a region
+with no barrier is a safe room the horde cannot reach, and one with no wall-buy
+gives the player no reason to spend the points. Blacksite runs four regions:
+
+| region | room | door | cost | guns |
+|---|---|---|---|---|
+| 0 | spawn yard | - | - | PDW-57 |
+| 1 | vault yard | `vault-door`, off spawn | 750 | KR-12, Breacher-12 |
+| 2 | substation | `substation-door`, off spawn | 1000 | Lancer-7 |
+| 3 | cold store | `coldstore-door`, off the vault | 1250 | Havoc-9 |
+
+Adding a wing is five edits: carve a door gap in the wall you are hanging it off,
+add the perimeter walls of the wing (with gaps for its barriers), add the
+`DoorDef`, add its `barriers`/`wallBuys`/`props`, and **add its rect to
+`playBounds`**. The last one is the easy one to forget - and the map tests catch
+it.
 
 ---
 
@@ -198,7 +233,9 @@ areas (and their better guns) behind doors, exactly like Blacksite's vault.
 - [ ] Props avoid the spawn point and barrier gaps.
 - [ ] Solid props leave every interaction point (wall-buys, doors) reachable.
 - [ ] Fences and barrier lines leave a walkable gap — they are solid.
-- [ ] The map keeps its light-emitting props to roughly 20.
+- [ ] Every wing has its own `playBounds` rect, overlapping its neighbour at the doorway.
+- [ ] Every region a door unlocks has at least one barrier and one wall-buy.
+- [ ] No solid prop is buried in a wall.
 
 ## Verify
 

@@ -125,3 +125,25 @@ export function nearestWallDist(ox: number, oy: number, dx: number, dy: number, 
   }
   return best;
 }
+
+/**
+ * Clamp a circle into the union of `zones`: free wherever it already fits in one,
+ * otherwise pulled into the nearest. A single bounding rect cannot cage an
+ * L-shaped compound without also covering the ground outside its barrier gaps,
+ * so the cage is a list of overlapping wings instead.
+ */
+export function clampToZones(p: Vec2, radius: number, zones: WallRect[]): Vec2 {
+  let best: Vec2 | null = null;
+  let bestD = Infinity;
+  for (const z of zones) {
+    const cx = clamp(p.x, z.minX + radius, z.maxX - radius);
+    const cy = clamp(p.y, z.minY + radius, z.maxY - radius);
+    const d = (cx - p.x) ** 2 + (cy - p.y) ** 2;
+    if (d === 0) return p; // already legal somewhere — leave it alone
+    if (d < bestD) {
+      bestD = d;
+      best = { x: cx, y: cy };
+    }
+  }
+  return best ?? p;
+}

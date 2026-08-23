@@ -25,6 +25,8 @@ import { getWeapon } from "../data/weapons";
 
 const WALL_H = 2.6;
 const LOOK_SENS = 0.0022;
+/** Real point lights kept alive at once; the rest of the map's fixtures glow only. */
+const LIGHT_POOL = 14;
 
 const DEFAULT_THEME: ThemeDef = {
   ground: "concrete",
@@ -49,23 +51,28 @@ interface ZombieMesh {
   head: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
 }
 
-/** A lamp/floodlight the renderer can dim — a third of them flicker on a bad ballast. */
-interface LampFx {
-  light: THREE.PointLight;
+/**
+ * One light-emitting fixture. Emitters are data, not lights: the glow meshes,
+ * haze cones and flames animate for every one of them, but only the nearest
+ * `LIGHT_POOL` get an actual THREE.PointLight each frame. That keeps the light
+ * count — and so the fragment cost and the shader permutation — constant no
+ * matter how many rooms a map opens up.
+ */
+interface Emitter {
+  pos: THREE.Vector3;
+  color: number;
+  /** Intensity at full brightness, before flicker. */
+  base: number;
+  range: number;
+  mode: "steady" | "flicker" | "fire";
+  phase: number;
   glow: THREE.MeshStandardMaterial | null;
-  cone: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
-  base: number;
+  glowBase: number;
+  cone: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial> | null;
   coneBase: number;
-  phase: number;
-  flickers: boolean;
-}
-
-/** A live fire: light + flame cones, both driven off the same noise. */
-interface FireFx {
-  light: THREE.PointLight;
-  flame: THREE.Object3D;
-  base: number;
-  phase: number;
+  flame: THREE.Object3D | null;
+  /** This frame's modulated intensity. */
+  live: number;
 }
 
 /** A rising particle column, animated in place with no allocation. */
@@ -95,7 +102,7 @@ export class ThirdPerson3D implements Renderer {
   private muzzleLight!: THREE.PointLight;
   private tracers!: THREE.LineSegments;
   private tracerPos = new Float32Array(64 * 2 * 3);
-  private doorMesh: THREE.Mesh | null = null;
+  private doorMeshes = new Map<string, THREE.Mesh>();
   private zombiePool: ZombieMesh[] = [];
   private hemi!: THREE.HemisphereLight;
   private dirLight!: THREE.DirectionalLight;
@@ -104,8 +111,11 @@ export class ThirdPerson3D implements Renderer {
   private pitch = 0.12;
 
   private time = 0;
-  private lamps: LampFx[] = [];
-  private fires: FireFx[] = [];
+  private emitters: Emitter[] = [];
+  private lightPool: THREE.PointLight[] = [];
+  private emitterRank: number[] = [];
+  private emitterDist = new Float64Array(0);
+  private readonly byDist = (a: number, b: number): number => this.emitterDist[a] - this.emitterDist[b];
   private beacons: THREE.MeshStandardMaterial[] = [];
   private plumes: PlumeFx[] = [];
   private dust: THREE.Points | null = null;
@@ -137,6 +147,14 @@ export class ThirdPerson3D implements Renderer {
 
     this.muzzleLight = new THREE.PointLight(0xffd070, 0, 10, 2);
     this.scene.add(this.muzzleLight);
+
+    // Allocated once and never added to or removed from, so three compiles the
+    // lighting shader a single time and reassigning slots costs nothing.
+    for (let i = 0; i < LIGHT_POOL; i++) {
+      const light = new THREE.PointLight(0xffffff, 0, 20, 2);
+      this.lightPool.push(light);
+      this.scene.add(light);
+    }
 
     const tgeo = new THREE.BufferGeometry();
     tgeo.setAttribute("position", new THREE.BufferAttribute(this.tracerPos, 3));
@@ -212,19 +230,19 @@ export class ThirdPerson3D implements Renderer {
       this.scene.add(mesh);
     }
 
-    // Door (its own mesh so we can hide it when opened).
-    const door = world.def.doors[0];
-    if (door) {
+    // Doors get their own mesh each, so any one of them can vanish when bought.
+    const doorMat = new THREE.MeshStandardMaterial({ color: 0x7a3b1a, roughness: 0.7, emissive: 0x2a1305 });
+    for (const door of world.def.doors) {
       const dw = door.blocks.maxX - door.blocks.minX;
       const dd = door.blocks.maxY - door.blocks.minY;
       const dcx = (door.blocks.minX + door.blocks.maxX) / 2;
       const dcz = (door.blocks.minY + door.blocks.maxY) / 2;
-      const doorMat = new THREE.MeshStandardMaterial({ color: 0x7a3b1a, roughness: 0.7, emissive: 0x2a1305 });
-      this.doorMesh = new THREE.Mesh(new THREE.BoxGeometry(dw, WALL_BOX, dd), doorMat);
-      this.doorMesh.position.set(dcx, height(dcx, dcz) + WALL_H / 2 - 0.6, dcz);
-      this.doorMesh.castShadow = true;
-      this.doorMesh.receiveShadow = true;
-      this.scene.add(this.doorMesh);
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(dw, WALL_BOX, dd), doorMat);
+      mesh.position.set(dcx, height(dcx, dcz) + WALL_H / 2 - 0.6, dcz);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      this.scene.add(mesh);
+      this.doorMeshes.set(door.id, mesh);
     }
 
     // Wall-buy markers.
@@ -261,16 +279,16 @@ export class ThirdPerson3D implements Renderer {
 
     // Coloured atmosphere lights (plus a visible glowing source).
     for (const L of world.def.lights ?? []) {
-      const light = new THREE.PointLight(L.color, L.intensity, L.range, 2);
-      light.position.set(L.pos.x, height(L.pos.x, L.pos.y) + (L.height ?? 3), L.pos.y);
-      this.scene.add(light);
-      const bulb = new THREE.Mesh(
-        new THREE.SphereGeometry(0.2, 8, 8),
-        new THREE.MeshBasicMaterial({ color: L.color }),
-      );
-      bulb.position.copy(light.position);
+      const y = height(L.pos.x, L.pos.y) + (L.height ?? 3);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshBasicMaterial({ color: L.color }));
+      bulb.position.set(L.pos.x, y, L.pos.y);
       this.scene.add(bulb);
+      this.addEmitter({ x: L.pos.x, y, z: L.pos.y }, L.color, L.intensity, L.range, "steady");
     }
+
+    // Emitter bookkeeping used by the per-frame nearest-N light assignment.
+    this.emitterDist = new Float64Array(this.emitters.length);
+    this.emitterRank = this.emitters.map((_, i) => i);
 
     // Player: torso + head + gun.
     this.player = new THREE.Group();
@@ -305,23 +323,37 @@ export class ThirdPerson3D implements Renderer {
     mesh.position.set(ox + dir.x * (length / 2), oy + dir.y * (length / 2), oz + dir.z * (length / 2));
   }
 
-  private addLamp(
-    light: THREE.PointLight,
-    cone: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>,
-    glow: THREE.Object3D | null,
-    flickers: boolean,
+  /** Register a fixture. Its cone/glow/flame animate always; its point light is
+   *  handed out per frame by `assignLights` only if it is among the nearest. */
+  private addEmitter(
+    pos: { x: number; y: number; z: number },
+    color: number,
+    intensity: number,
+    range: number,
+    mode: Emitter["mode"] = "steady",
+    parts: {
+      glow?: THREE.Object3D | null;
+      cone?: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial> | null;
+      flame?: THREE.Object3D | null;
+    } = {},
   ): void {
-    this.scene.add(light);
-    this.scene.add(cone);
-    const mat = glow instanceof THREE.Mesh && glow.material instanceof THREE.MeshStandardMaterial ? glow.material : null;
-    this.lamps.push({
-      light,
-      cone,
-      glow: mat,
-      base: light.intensity,
-      coneBase: cone.material.opacity,
+    const { glow = null, cone = null, flame = null } = parts;
+    if (cone) this.scene.add(cone);
+    const glowMat =
+      glow instanceof THREE.Mesh && glow.material instanceof THREE.MeshStandardMaterial ? glow.material : null;
+    this.emitters.push({
+      pos: new THREE.Vector3(pos.x, pos.y, pos.z),
+      color,
+      base: intensity,
+      range,
+      mode,
       phase: Math.random() * Math.PI * 2,
-      flickers,
+      glow: glowMat,
+      glowBase: glowMat?.emissiveIntensity ?? 1,
+      cone,
+      coneBase: cone?.material.opacity ?? 0,
+      flame,
+      live: intensity,
     });
   }
 
@@ -344,22 +376,18 @@ export class ThirdPerson3D implements Renderer {
         const hx = prop.pos.x + fx * 0.62 * scl;
         const hz = prop.pos.y + fz * 0.62 * scl;
         const hy = gy + 3.88 * scl;
-        const light = new THREE.PointLight(tint, 16, 30, 2);
-        light.position.set(hx, hy, hz);
         const cone = makeLightCone(0.45 * scl, 3.4 * scl, hy - gy, tint, 0.07);
         cone.position.set(hx, gy + (hy - gy) / 2, hz);
-        this.addLamp(light, cone, glow, Math.random() < 0.3);
+        // Roughly a third of them sit on a failing ballast.
+        const mode = Math.random() < 0.3 ? "flicker" : "steady";
+        this.addEmitter({ x: hx, y: hy, z: hz }, tint, 16, 30, mode, { glow, cone });
         break;
       }
       case "car": {
-        // One light for the pair — the two glowing lenses sell the rest, and a
-        // forward-rendered scene pays for every extra light on every fragment.
-        const light = new THREE.PointLight(0xfff4e0, 14, 26, 2);
-        light.position.set(prop.pos.x + fx * 1.6, gy + 0.7, prop.pos.y + fz * 1.6);
-        this.scene.add(light);
+        // One emitter for the pair — the two glowing lenses sell the rest.
         const beam = makeLightCone(2.4 * scl, 0.4 * scl, 10, 0xfff4e0, 0.045);
         this.placeBeam(beam, prop.pos.x + fx * 1.2, gy + 0.55, prop.pos.y + fz * 1.2, new THREE.Vector3(fx, -0.05, fz), 10);
-        this.scene.add(beam);
+        this.addEmitter({ x: prop.pos.x + fx * 1.6, y: gy + 0.7, z: prop.pos.y + fz * 1.6 }, 0xfff4e0, 14, 26, "steady", { cone: beam });
         break;
       }
       case "floodlight": {
@@ -367,30 +395,23 @@ export class ThirdPerson3D implements Renderer {
         const hx = prop.pos.x + fx * 0.24 * scl;
         const hz = prop.pos.y + fz * 0.24 * scl;
         const hy = gy + 2.28 * scl;
-        const light = new THREE.PointLight(tint, 22, 34, 2);
-        light.position.set(hx, hy, hz);
         const beam = makeLightCone(4.0 * scl, 0.45 * scl, 14, tint, 0.05);
         this.placeBeam(beam, hx, hy, hz, new THREE.Vector3(fx, -0.32, fz), 14);
-        this.addLamp(light, beam, glow, false);
+        this.addEmitter({ x: hx, y: hy, z: hz }, tint, 22, 34, "steady", { glow, cone: beam });
         break;
       }
       case "tower": {
         const hx = prop.pos.x + fx * 1.0 * scl;
         const hz = prop.pos.y + fz * 1.0 * scl;
         const hy = gy + 6.05 * scl;
-        const light = new THREE.PointLight(0xfff0cc, 26, 44, 2);
-        light.position.set(hx, hy, hz);
         const beam = makeLightCone(6.0 * scl, 0.5 * scl, 20, 0xfff0cc, 0.045);
         this.placeBeam(beam, hx, hy, hz, new THREE.Vector3(fx, -0.42, fz), 20);
-        this.addLamp(light, beam, glow, false);
+        this.addEmitter({ x: hx, y: hy, z: hz }, 0xfff0cc, 26, 44, "steady", { glow, cone: beam });
         break;
       }
       case "firebarrel": {
-        const light = new THREE.PointLight(0xff8a20, 11, 16, 2);
-        light.position.set(prop.pos.x, gy + 1.3 * scl, prop.pos.y);
-        this.scene.add(light);
-        const flame = g.getObjectByName("flame");
-        if (flame) this.fires.push({ light, flame, base: 11, phase: Math.random() * Math.PI * 2 });
+        const flame = g.getObjectByName("flame") ?? null;
+        this.addEmitter({ x: prop.pos.x, y: gy + 1.3 * scl, z: prop.pos.y }, 0xff8a20, 11, 16, "fire", { flame });
         this.addPlume(prop.pos.x, gy + 1.7 * scl, prop.pos.y, 26, 0.3, 5.5, 1.1, 0x3a352f);
         break;
       }
@@ -407,6 +428,40 @@ export class ThirdPerson3D implements Renderer {
       }
       default:
         break;
+    }
+  }
+
+  /**
+   * Hand the point-light pool to the fixtures nearest the player. Emitters past
+   * their own falloff leave their slot dark, so a swap is invisible: whatever
+   * drops out was already contributing nothing at that distance.
+   */
+  private assignLights(px: number, py: number, pz: number): void {
+    for (let i = 0; i < this.emitters.length; i++) {
+      const e = this.emitters[i];
+      const dx = e.pos.x - px;
+      const dy = e.pos.y - py;
+      const dz = e.pos.z - pz;
+      this.emitterDist[i] = dx * dx + dy * dy + dz * dz;
+    }
+    this.emitterRank.sort(this.byDist); // near-sorted every frame, so this is cheap
+
+    for (let slot = 0; slot < this.lightPool.length; slot++) {
+      const light = this.lightPool[slot];
+      const idx = this.emitterRank[slot];
+      if (idx === undefined) {
+        light.intensity = 0;
+        continue;
+      }
+      const e = this.emitters[idx];
+      if (this.emitterDist[idx] > e.range * e.range) {
+        light.intensity = 0;
+        continue;
+      }
+      light.position.copy(e.pos);
+      light.color.setHex(e.color);
+      light.distance = e.range;
+      light.intensity = e.live;
     }
   }
 
@@ -471,21 +526,25 @@ export class ThirdPerson3D implements Renderer {
   private updateFx(dt: number): void {
     const t = this.time;
 
-    for (const lamp of this.lamps) {
-      if (!lamp.flickers) continue;
-      // Mostly-on with occasional dips, rather than a strobe.
-      const n = flickerNoise(t, lamp.phase);
-      const k = n > 0.35 ? 1 : 0.35 + n;
-      lamp.light.intensity = lamp.base * k;
-      lamp.cone.material.opacity = lamp.coneBase * k;
-      if (lamp.glow) lamp.glow.emissiveIntensity = 1.6 * k;
-    }
-
-    for (const fire of this.fires) {
-      const n = flickerNoise(t, fire.phase);
-      fire.light.intensity = fire.base * (0.72 + n * 0.55);
-      fire.flame.scale.set(0.86 + n * 0.28, 0.75 + n * 0.5, 0.86 + n * 0.28);
-      fire.flame.rotation.y = t * 1.7 + fire.phase;
+    for (const e of this.emitters) {
+      let k = 1;
+      if (e.mode === "flicker") {
+        // Mostly-on with occasional dips, rather than a strobe.
+        const n = flickerNoise(t, e.phase);
+        k = n > 0.35 ? 1 : 0.35 + n;
+      } else if (e.mode === "fire") {
+        const n = flickerNoise(t, e.phase);
+        k = 0.72 + n * 0.55;
+        if (e.flame) {
+          e.flame.scale.set(0.86 + n * 0.28, 0.75 + n * 0.5, 0.86 + n * 0.28);
+          e.flame.rotation.y = t * 1.7 + e.phase;
+        }
+      } else {
+        continue; // steady fixtures never need re-modulating
+      }
+      e.live = e.base * k;
+      if (e.cone) e.cone.material.opacity = e.coneBase * Math.min(1, k);
+      if (e.glow) e.glow.emissiveIntensity = e.glowBase * k;
     }
 
     for (const beacon of this.beacons) {
@@ -532,7 +591,7 @@ export class ThirdPerson3D implements Renderer {
   render(world: World, dt: number): void {
     this.time += dt;
     this.buildFromWorld(world);
-    if (this.doorMesh) this.doorMesh.visible = !world.map.openedDoors.has("vault-door");
+    for (const [id, mesh] of this.doorMeshes) mesh.visible = !world.map.openedDoors.has(id);
 
     const p = world.player;
     const groundP = world.terrain.heightAt(p.pos.x, p.pos.y);
@@ -579,6 +638,8 @@ export class ThirdPerson3D implements Renderer {
     this.camera.lookAt(p.pos.x + fx * 4, groundP + 1.4 - this.pitch * 3, p.pos.y + fz * 4);
 
     this.updateFx(dt);
+    // Light the player's surroundings, not the camera's — the camera trails them.
+    this.assignLights(p.pos.x, p.footY + 1.2, p.pos.y);
     this.renderer.render(this.scene, this.camera);
   }
 

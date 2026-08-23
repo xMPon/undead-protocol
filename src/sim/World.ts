@@ -4,7 +4,7 @@
 // the sim stays decoupled from presentation.
 
 import type { Vec2 } from "../core/math";
-import { add, angleOf, clamp, fromAngle, len, norm, rotate, scale, sub, distSq } from "../core/math";
+import { add, angleOf, fromAngle, len, norm, rotate, scale, sub, distSq } from "../core/math";
 import { randInt } from "../core/rng";
 import type { Intent, Tracer, Obstacle } from "./types";
 import { GameMap } from "./Map";
@@ -14,7 +14,7 @@ import { RoundManager } from "./Round";
 import { spawnGate, spawnInterval } from "./Spawner";
 import { FlowField } from "./pathing";
 import { Terrain, FLAT_TERRAIN } from "./Terrain";
-import { resolveCircleObstacles, supportHeight, rayVsCircle, nearestWallDist } from "./collision";
+import { resolveCircleObstacles, supportHeight, rayVsCircle, nearestWallDist, clampToZones } from "./collision";
 import { canFire, consumeRound, canReload, fireInterval } from "./Weapons";
 import { POINTS_HIT, POINTS_KILL, spend } from "./Economy";
 import { PROP_SPECS, footprintExtents, isSolidProp } from "./props";
@@ -174,10 +174,7 @@ export class World {
     p.pos = resolveCircleObstacles(desired, p.radius, p.footY, this.obstacles);
     // Keep the player caged inside the map even where zombie barriers leave gaps.
     const pb = this.def.playBounds;
-    if (pb) {
-      p.pos.x = clamp(p.pos.x, pb.minX + p.radius, pb.maxX - p.radius);
-      p.pos.y = clamp(p.pos.y, pb.minY + p.radius, pb.maxY - p.radius);
-    }
+    if (pb?.length) p.pos = clampToZones(p.pos, p.radius, pb);
     this.applyGravity(dt, p.pos, p, intent.jump);
   }
 
@@ -401,7 +398,7 @@ export class World {
     }
     const door = this.map.nearestClosedDoor(p.pos);
     if (door) {
-      this.prompt = { kind: "door", text: "Open Door", cost: door.cost, affordable: p.points >= door.cost };
+      this.prompt = { kind: "door", text: door.name ?? "Open Door", cost: door.cost, affordable: p.points >= door.cost };
       return;
     }
     this.prompt = null;

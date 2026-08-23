@@ -96,6 +96,8 @@ export interface DoorDef {
   id: string;
   /** Prompt anchor / interaction point. */
   pos: Vec2;
+  /** What the prompt calls it, e.g. "Open Vault". Defaults to "Open Door". */
+  name?: string;
   cost: number;
   /** Wall rectangle removed from collision when the door opens. */
   blocks: WallRect;
@@ -113,8 +115,11 @@ export interface MapDef {
   playerSpawn: Vec2;
   /** Regions live from the start (region 0 = spawn room). */
   startRegions: number[];
-  /** Interior rectangle the player is confined to (zombies ignore it). */
-  playBounds?: WallRect;
+  /** Rectangles the player is confined to — the cage that stops them walking out
+   *  through a barrier gap. The player may stand anywhere in the **union**, so a
+   *  compound of several wings lists one rect per wing; make connected rects
+   *  overlap across their shared doorway. Zombies ignore this entirely. */
+  playBounds?: WallRect[];
   /** Ground elevation. Omit for flat. */
   terrain?: TerrainDef;
   /** Environment look (fog/lights/sky/ground). Omit for the default. */
