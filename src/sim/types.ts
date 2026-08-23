@@ -17,12 +17,13 @@ export interface Intent {
   reload: boolean;
   interact: boolean;
   sprint: boolean;
+  jump: boolean;
   /** Weapon slot the player wants to switch to, or null. */
   switchTo: number | null;
 }
 
 export function emptyIntent(): Intent {
-  return { move: { x: 0, y: 0 }, aim: 0, firing: false, reload: false, interact: false, sprint: false, switchTo: null };
+  return { move: { x: 0, y: 0 }, aim: 0, firing: false, reload: false, interact: false, sprint: false, jump: false, switchTo: null };
 }
 
 // ---- Weapons ----
@@ -69,6 +70,13 @@ export interface WallRect {
   maxY: number;
 }
 
+/** A solid rectangle with a top height (absolute) — used for height-aware
+ *  movement so entities can jump onto low obstacles but not through tall ones. */
+export interface Obstacle {
+  rect: WallRect;
+  top: number;
+}
+
 /** A boarded window where zombies breach into a room. */
 export interface BarrierDef {
   pos: Vec2;
@@ -105,6 +113,91 @@ export interface MapDef {
   playerSpawn: Vec2;
   /** Regions live from the start (region 0 = spawn room). */
   startRegions: number[];
+  /** Interior rectangle the player is confined to (zombies ignore it). */
+  playBounds?: WallRect;
+  /** Ground elevation. Omit for flat. */
+  terrain?: TerrainDef;
+  /** Environment look (fog/lights/sky/ground). Omit for the default. */
+  theme?: ThemeDef;
+  /** Scenery / cover objects. Solid ones also block movement + bullets. */
+  props?: PropDef[];
+  /** Coloured point lights for atmosphere. */
+  lights?: PointLightDef[];
+}
+
+// ---- Terrain ----
+
+export type TerrainLayerKind = "hills" | "drifts" | "dunes" | "terraces" | "noise";
+
+export interface TerrainLayer {
+  kind: TerrainLayerKind;
+  /** Peak vertical displacement in world units. */
+  amplitude: number;
+  /** World units per feature cycle. */
+  wavelength: number;
+  seed: number;
+  /** Ridge direction for `dunes` (radians). */
+  angle?: number;
+  /** Step count for `terraces`. */
+  steps?: number;
+}
+
+/** Forces the ground flat inside `rect`, ramping over `blend` units at the edges. */
+export interface FlatZone {
+  rect: WallRect;
+  height: number;
+  /** World units of ramp blending at the edges (0 = a hard step). */
+  blend?: number;
+}
+
+export interface TerrainDef {
+  baseHeight: number;
+  layers: TerrainLayer[];
+  flatZones?: FlatZone[];
+}
+
+// ---- Theme ----
+
+export type GroundKind = "concrete" | "snow" | "sand" | "dock" | "quarry" | "grass";
+
+export interface ThemeDef {
+  ground: GroundKind;
+  fog: number;
+  fogNear: number;
+  fogFar: number;
+  sky: number;
+  hemiSky: number;
+  hemiGround: number;
+  dir: number;
+  dirIntensity: number;
+}
+
+// ---- Props ----
+
+export type PropKind = "crate" | "barrel" | "rock" | "sandbag" | "container" | "lamp" | "car";
+
+export interface PropDef {
+  kind: PropKind;
+  pos: Vec2;
+  /** Yaw in radians. */
+  rot?: number;
+  scale?: number;
+  /** Whether it blocks movement/bullets (default true). */
+  solid?: boolean;
+  /** Optional colour override (hex) — used for crates and containers. */
+  color?: number;
+}
+
+// ---- Lights ----
+
+/** A coloured point light placed in the map for atmosphere. */
+export interface PointLightDef {
+  pos: Vec2;
+  color: number;
+  intensity: number;
+  range: number;
+  /** Height above the ground (world units). Default 3. */
+  height?: number;
 }
 
 // ---- Transient render-facing events ----

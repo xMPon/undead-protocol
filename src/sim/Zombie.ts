@@ -18,6 +18,20 @@ export class Zombie {
   facing = 0;
   radius = ZOMBIE_RADIUS;
 
+  /** Absolute height of the feet (world up). */
+  footY = 0;
+  vz = 0;
+  onGround = true;
+  /** Seconds spent barely moving while chasing — drives the unstuck nudge. */
+  stuckTimer = 0;
+  private stuckSign = 1;
+
+  /** Toggle and read the sidestep direction used when unsticking. */
+  nextStuckSign(): number {
+    this.stuckSign = -this.stuckSign;
+    return this.stuckSign;
+  }
+
   maxHealth: number;
   health: number;
   speed: number;

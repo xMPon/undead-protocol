@@ -20,6 +20,12 @@ export class Player {
   aim = 0;
   radius = 0.45;
 
+  /** Absolute height of the feet (world up). Set by World from the terrain. */
+  footY = 0;
+  /** Vertical velocity for jumping. */
+  vz = 0;
+  onGround = true;
+
   maxHealth = 150;
   health = 150;
   alive = true;

@@ -5,6 +5,7 @@
 import type { Vec2 } from "../core/math";
 import { distSq } from "../core/math";
 import type { MapDef, WallRect, BarrierDef, WallBuyDef, DoorDef } from "./types";
+import { footprintExtents } from "./props";
 
 export const INTERACT_RANGE = 2.4;
 
@@ -24,6 +25,14 @@ export class GameMap {
     const walls = [...this.def.walls];
     for (const door of this.def.doors) {
       if (!this.openedDoors.has(door.id)) walls.push(door.blocks);
+    }
+    // Solid props are obstacles too — footprint sized by the shared spec table,
+    // rotated to an AABB. (Flat rects here feed the flow-field and bullets;
+    // height-aware movement uses World.obstacles.)
+    for (const p of this.def.props ?? []) {
+      if (p.solid === false) continue;
+      const { ex, ey } = footprintExtents(p.kind, p.scale ?? 1, p.rot ?? 0);
+      walls.push({ minX: p.pos.x - ex, minY: p.pos.y - ey, maxX: p.pos.x + ex, maxY: p.pos.y + ey });
     }
     this.walls = walls;
   }

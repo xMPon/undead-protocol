@@ -3,7 +3,7 @@
 
 import type { Vec2 } from "../core/math";
 import { clamp } from "../core/math";
-import type { WallRect } from "./types";
+import type { WallRect, Obstacle } from "./types";
 
 /** True if the point lies strictly inside the rectangle. */
 export function pointInRect(x: number, y: number, r: WallRect): boolean {
@@ -49,6 +49,29 @@ export function resolveCircleRects(pos: Vec2, radius: number, rects: WallRect[])
     }
   }
   return p;
+}
+
+/**
+ * Height-aware circle resolution: an obstacle only blocks the circle when its
+ * top rises above the circle's feet (footY). Obstacles the entity is standing on
+ * or above are ignored, so a jumper can move across their tops.
+ */
+export function resolveCircleObstacles(pos: Vec2, radius: number, footY: number, obstacles: Obstacle[], clear = 0.05): Vec2 {
+  const active: WallRect[] = [];
+  for (const o of obstacles) if (o.top > footY + clear) active.push(o.rect);
+  return resolveCircleRects(pos, radius, active);
+}
+
+/**
+ * Highest support surface under a point: the ground, or the top of any obstacle
+ * the point is over that is at/below the feet (within a small step tolerance).
+ */
+export function supportHeight(pos: Vec2, footY: number, groundY: number, obstacles: Obstacle[], step = 0.3): number {
+  let s = groundY;
+  for (const o of obstacles) {
+    if (o.top <= footY + step && o.top > s && pointInRect(pos.x, pos.y, o.rect)) s = o.top;
+  }
+  return s;
 }
 
 /**

@@ -4,24 +4,31 @@
 // the sim stays decoupled from presentation.
 
 import type { Vec2 } from "../core/math";
-import { add, angleOf, fromAngle, len, norm, scale, sub, distSq } from "../core/math";
+import { add, angleOf, clamp, fromAngle, len, norm, rotate, scale, sub, distSq } from "../core/math";
 import { randInt } from "../core/rng";
-import type { Intent, Tracer } from "./types";
+import type { Intent, Tracer, Obstacle } from "./types";
 import { GameMap } from "./Map";
 import { Player } from "./Player";
 import { Zombie, ZOMBIE_TOUCH_DAMAGE, ZOMBIE_ATTACK_CADENCE } from "./Zombie";
 import { RoundManager } from "./Round";
 import { spawnGate, spawnInterval } from "./Spawner";
 import { FlowField } from "./pathing";
-import { resolveCircleRects, rayVsCircle, nearestWallDist } from "./collision";
+import { Terrain, FLAT_TERRAIN } from "./Terrain";
+import { resolveCircleObstacles, supportHeight, rayVsCircle, nearestWallDist } from "./collision";
 import { canFire, consumeRound, canReload, fireInterval } from "./Weapons";
 import { POINTS_HIT, POINTS_KILL, spend } from "./Economy";
+import { PROP_SPECS, footprintExtents } from "./props";
 import { getWeapon } from "../data/weapons";
 import { BLACKSITE } from "../data/map_blacksite";
 import type { MapDef } from "./types";
 
 const FLOW_INTERVAL = 0.15; // seconds between flow-field recomputes
 const SEPARATION_RADIUS = 1.05;
+const GRAVITY = 24; // world units / s^2
+const JUMP_V = 8.2; // launch velocity (peak ~1.4 units — clears crates/barrels)
+const WALL_TOP = 1000; // effectively impassable
+const STUCK_TIME = 0.4; // seconds barely moving before a zombie nudges/jumps
+const ATTACK_MAX_DZ = 1.2; // max feet-height gap for a zombie to land a hit
 
 export interface InteractPrompt {
   kind: "wallbuy" | "door";
@@ -42,6 +49,8 @@ export class World {
   zombies: Zombie[] = [];
   rounds = new RoundManager();
   flow: FlowField;
+  terrain: Terrain;
+  obstacles: Obstacle[] = [];
 
   tracers: Tracer[] = [];
   muzzle = 0; // muzzle-flash timer for renderers
@@ -73,15 +82,37 @@ export class World {
     this.def = def;
     this.map = new GameMap(def);
     this.player = new Player(def.playerSpawn);
+    this.terrain = new Terrain(def.terrain ?? FLAT_TERRAIN);
+    this.player.footY = this.terrain.heightAt(this.player.pos.x, this.player.pos.y);
+    this.buildObstacles();
     this.flow = new FlowField(def.bounds, 0.8);
     this.flow.rebuild(this.map.walls);
     this.flow.compute(this.player.pos);
+  }
+
+  /** Rebuild the height-aware obstacle list (walls + closed doors + solid props). */
+  private buildObstacles(): void {
+    const obs: Obstacle[] = [];
+    for (const w of this.def.walls) obs.push({ rect: w, top: WALL_TOP });
+    for (const d of this.def.doors) {
+      if (!this.map.openedDoors.has(d.id)) obs.push({ rect: d.blocks, top: WALL_TOP });
+    }
+    for (const p of this.def.props ?? []) {
+      if (p.solid === false) continue;
+      const s = p.scale ?? 1;
+      const { ex, ey } = footprintExtents(p.kind, s, p.rot ?? 0);
+      const rect = { minX: p.pos.x - ex, minY: p.pos.y - ey, maxX: p.pos.x + ex, maxY: p.pos.y + ey };
+      const top = this.terrain.heightAt(p.pos.x, p.pos.y) + PROP_SPECS[p.kind].height * s;
+      obs.push({ rect, top });
+    }
+    this.obstacles = obs;
   }
 
   /** Reset to a fresh game while preserving wired callbacks. */
   reset(): void {
     this.map = new GameMap(this.def);
     this.player = new Player(this.def.playerSpawn);
+    this.player.footY = this.terrain.heightAt(this.player.pos.x, this.player.pos.y);
     this.zombies = [];
     this.rounds = new RoundManager();
     this.tracers = [];
@@ -92,6 +123,7 @@ export class World {
     this.spawnCooldown = 0;
     this.flowTimer = 0;
     this.prevFiring = this.prevInteract = this.prevReload = false;
+    this.buildObstacles();
     this.flow.rebuild(this.map.walls);
     this.flow.compute(this.player.pos);
   }
@@ -133,12 +165,36 @@ export class World {
   // ---- movement ----
 
   private handleMovement(dt: number, intent: Intent): void {
+    const p = this.player;
     let mv: Vec2 = intent.move;
     const l = len(mv);
     if (l > 1) mv = scale(mv, 1 / l);
-    const sp = this.player.speed * (intent.sprint ? this.player.sprintMul : 1);
-    const desired = { x: this.player.pos.x + mv.x * sp * dt, y: this.player.pos.y + mv.y * sp * dt };
-    this.player.pos = resolveCircleRects(desired, this.player.radius, this.map.walls);
+    const sp = p.speed * (intent.sprint ? p.sprintMul : 1);
+    const desired = { x: p.pos.x + mv.x * sp * dt, y: p.pos.y + mv.y * sp * dt };
+    p.pos = resolveCircleObstacles(desired, p.radius, p.footY, this.obstacles);
+    // Keep the player caged inside the map even where zombie barriers leave gaps.
+    const pb = this.def.playBounds;
+    if (pb) {
+      p.pos.x = clamp(p.pos.x, pb.minX + p.radius, pb.maxX - p.radius);
+      p.pos.y = clamp(p.pos.y, pb.minY + p.radius, pb.maxY - p.radius);
+    }
+    this.applyGravity(dt, p.pos, p, intent.jump);
+  }
+
+  /** Vertical integration + jump for any entity with footY/vz/onGround. */
+  private applyGravity(dt: number, pos: Vec2, ent: { footY: number; vz: number; onGround: boolean }, jump: boolean): void {
+    const groundY = this.terrain.heightAt(pos.x, pos.y);
+    const support = supportHeight(pos, ent.footY, groundY, this.obstacles);
+    if (jump && ent.onGround) ent.vz = JUMP_V;
+    ent.footY += ent.vz * dt;
+    ent.vz -= GRAVITY * dt;
+    if (ent.footY <= support) {
+      ent.footY = support;
+      ent.vz = 0;
+      ent.onGround = true;
+    } else {
+      ent.onGround = false;
+    }
   }
 
   // ---- shooting ----
@@ -244,6 +300,7 @@ export class World {
     const pos = { x: b.pos.x - b.inward.x, y: b.pos.y - b.inward.y };
     const z = new Zombie(pos, this.rounds.spawnHealth, zombieSpeed(this.rounds.round));
     z.facing = angleOf(b.inward);
+    z.footY = this.terrain.heightAt(pos.x, pos.y);
     this.zombies.push(z);
     return true;
   }
@@ -271,7 +328,7 @@ export class World {
       z.facing = angleOf(toP);
       const contact = p.radius + z.radius + 0.12;
 
-      if (d <= contact) {
+      if (d <= contact && Math.abs(p.footY - z.footY) < ATTACK_MAX_DZ) {
         z.state = "attacking";
         if (z.attackCooldown <= 0) {
           const before = p.health;
@@ -279,16 +336,34 @@ export class World {
           z.attackCooldown = ZOMBIE_ATTACK_CADENCE;
           if (p.health < before) this.onHurt?.();
         }
+        this.applyGravity(dt, z.pos, z, false);
         continue;
       }
 
       z.state = "chasing";
       const flowDir = this.flow.sample(z.pos);
       const sep = this.separation(z);
-      const steer = norm(add(flowDir, scale(sep, 0.7)));
+      let steer = norm(add(flowDir, scale(sep, 0.7)));
+
+      // Unstuck: barely moving for a while → sidestep and hop over the obstacle.
+      let wantJump = false;
+      if (z.stuckTimer > STUCK_TIME) {
+        steer = rotate(flowDir, z.nextStuckSign() * (Math.PI / 2));
+        wantJump = true;
+        z.stuckTimer = 0;
+      }
+      // Follow the player up onto objects.
+      if (z.onGround && p.footY - z.footY > 0.5 && d < 3) wantJump = true;
+
       const step = z.speed * dt;
       const desired = { x: z.pos.x + steer.x * step, y: z.pos.y + steer.y * step };
-      z.pos = resolveCircleRects(desired, z.radius, this.map.walls);
+      const oldx = z.pos.x;
+      const oldy = z.pos.y;
+      z.pos = resolveCircleObstacles(desired, z.radius, z.footY, this.obstacles);
+      this.applyGravity(dt, z.pos, z, wantJump);
+
+      if (Math.hypot(z.pos.x - oldx, z.pos.y - oldy) < 0.02) z.stuckTimer += dt;
+      else z.stuckTimer = 0;
     }
 
     // Cull corpses once their fade-out has elapsed.
@@ -359,6 +434,7 @@ export class World {
       if (r.ok) {
         p.points = r.points;
         this.map.openDoor(door.id);
+        this.buildObstacles();
         this.flow.rebuild(this.map.walls);
         this.onDoor?.();
       } else {
