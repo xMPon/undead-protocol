@@ -52,7 +52,7 @@ changes nothing about game state.
 | `render/ViewManager.ts` | holds both renderers, keeps one visible, toggles them |
 | `render/procgen.ts` | procedural PBR-ish materials (albedo + **normal maps**), terrain mesh, sky dome, prop meshes, jointed character rigs, weapon models, decal textures — no asset files |
 | `data/weapons.ts` | `WEAPONS` registry (original, non-trademarked designations) |
-| `data/maps.ts` | the map roster (`MAPS`, `getMap`) the select menu and saved settings read |
+| `data/maps.ts` | the map roster (`MAPS`, `getMap`) the select menu and saved settings read. Draft status per map: [`docs/MAP-AUDIT.md`](docs/MAP-AUDIT.md) |
 | `data/map_blacksite.ts` | the reference map "Blacksite" — walls, barriers, buys, doors, terrain, theme, props, lights, decals, `playBounds` |
 | `data/map_coldstep.ts` … `map_deepcut.ts` | the other four Phase 1 maps — a ring, a tight chain of rooms, an open pier, a hub-and-spokes pit. Different **shapes**, not palettes |
 | `data/perks.ts` | perk registry — **reserved for Phase 2**, not wired yet |
@@ -85,6 +85,10 @@ changes nothing about game state.
   the tab is backgrounded the RAF loop throttles, so verify the sim headlessly:
   loop `world.update(dt, intent)` and read `world.zombies`, `world.player`,
   `world.rounds`, `world.kills` directly.
+- **Passing `tests/map.test.ts` is not the same as a map being finished.** The
+  suite proves the *data* is coherent — nothing in it can tell you a map looks
+  right or plays well. A new map stays a draft until someone has played it; see
+  [`docs/MAP-AUDIT.md`](docs/MAP-AUDIT.md).
 - **A gated region's barriers must open OUTWARD**, to the outside of the
   compound — never into another region. The player cage is a union of rectangles
   and cannot express a hole, so a barrier gap facing an area the player already
@@ -119,7 +123,7 @@ that convention.
 
 ## Roadmap
 
-- **Phase 1 — COMPLETE:** main menu; map "Blacksite"; dual 3D/2D
+- **Phase 1 — feature-complete, map roster under audit:** main menu; map "Blacksite"; dual 3D/2D
   renderers; movement + hitscan shooting + reload; 4 weapons (M9 + PDW-57 /
   KR-12 / Breacher-12 wall-buys); flow-field zombie AI; round system with
   health/count scaling + intermissions; points economy (hits/kills, wall-buys,
@@ -159,7 +163,12 @@ that convention.
   Deepcut (a hub with three spokes at four different heights) — plus the
   map-select menu, `World.loadMap` for swapping maps in place, and a renderer
   that tears its map scene down and rebuilds it.
-  **Phase 1 is complete.**
+  **Not finished: the four new maps are drafts.** They pass all 31 automated
+  data-integrity checks, but none has been viewed in 3D or played, and none has
+  had a balance pass. [`docs/MAP-AUDIT.md`](docs/MAP-AUDIT.md) tracks what is
+  verified, the specific risks (props and walls on the much steeper terrain,
+  box-vs-box overlap only being bounding-box tested, the whiteout, the darkness,
+  whether the water reads as water) and what closes each one out.
 - **Phase 2:** perks (Ironhide / Rapid Rounds / Fast Hands / Second Wind), the
   Mystery Box ("The Cache"), grenades, ADS, more map regions, board-up barriers.
 - **Phase 3:** weapon-upgrade station ("The Forge"), dog/Feral-Hound rounds,

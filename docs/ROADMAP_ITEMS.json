@@ -45,8 +45,15 @@
     "id": "phase-1-four-more-maps",
     "title": "Build four additional Phase 1 maps",
     "phase": "Phase 1",
-    "status": "done",
-    "details": "Four more maps beside Blacksite, each built around a different topology and its own terrain system rather than a reskin of the same yards: Coldstep (a ring around a sealed hangar, wind drifts, a twelve-unit whiteout, barriers on all four walls), Dustline (a tight chain of four small rooms in an L, each 1.2 units lower than the last, near-total darkness lit by fire barrels), Tidewater (an open pier with no perimeter at all, decking over a water plane, barriers along both long edges) and Deepcut (a hub with three spokes at four different working levels, spawning at the bottom of the bowl). All five run the same data-integrity and headless play tests."
+    "status": "in_progress",
+    "details": "Four more maps beside Blacksite, each built around a different topology and its own terrain system rather than a reskin of the same yards: Coldstep (a ring around a sealed hangar, wind drifts, a twelve-unit whiteout, barriers on all four walls), Dustline (a tight chain of four small rooms in an L, each 1.2 units lower than the last, near-total darkness lit by fire barrels), Tidewater (an open pier with no perimeter at all, decking over a water plane, barriers along both long edges) and Deepcut (a hub with three spokes at four different working levels, spawning at the bottom of the bowl). All five run the same data-integrity and headless play tests. NOT FINISHED: all four are drafts. They pass the 31 automated data-integrity checks, but none has been viewed in 3D, played, or balanced. Outstanding work and per-map risks are tracked in docs/MAP-AUDIT.md; the item closes when every map in that table reads final."
+  },
+  {
+    "id": "phase-1-map-audit",
+    "title": "Audit and finish the four draft maps",
+    "phase": "Phase 1",
+    "status": "todo",
+    "details": "Play and visually review Coldstep, Dustline, Tidewater and Deepcut, which currently ship as drafts. Covers props and walls on the steeper terrain of the new maps, box-vs-box prop overlap (only bounding-box tested), the point-light pool on unfamiliar fixture layouts, the 2D view on each map, and a balance pass on door costs, wall-buy placement, barrier counts and round pacing. Specific per-map risks are listed in docs/MAP-AUDIT.md."
   },
   {
     "id": "phase-2-perks-and-cache",

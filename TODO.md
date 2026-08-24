@@ -4,7 +4,13 @@ Remaining work, grouped by area. Items are ordered roughly by dependency and pla
 
 ## Maps and progression
 
-- [x] Add the four remaining maps planned for the first release phase. *(Coldstep, Dustline, Tidewater, Deepcut.)*
+- [x] Add the four remaining maps planned for the first release phase. *(Coldstep, Dustline, Tidewater, Deepcut — built, but see the audit below.)*
+- [ ] **Audit the four new maps.** None has been viewed in 3D or played; all four are drafts. Checklist and per-map risks in [`docs/MAP-AUDIT.md`](docs/MAP-AUDIT.md).
+- [ ] Check props and walls sitting on the steeper terrain of the new maps (floating or sunken corners).
+- [ ] Confirm the Coldstep whiteout and the Dustline darkness are actually playable.
+- [ ] Confirm the Tidewater water plane reads as water rather than more concrete.
+- [ ] Balance pass on all five maps: door costs, wall-buy placement, barrier counts, round pacing.
+- [ ] Open the 2D top-down view on each new map.
 - [x] Build a map-select menu and pass the selected map into the shared simulation.
 - [x] Add more map regions with meaningful unlock routes and wall buys. *(All five maps ship 2–4 areas.)*
 - [ ] Add the power switch and connect it to map progression.

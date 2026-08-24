@@ -44,7 +44,11 @@ survive.
 
 ## What's in Phase 1
 
-Phase 1 is **complete**.
+Phase 1 is **feature-complete, and the map roster is still being audited.**
+Blacksite is finished. The four maps added after it are structurally sound and
+pass every automated check, but **none has been looked at in 3D or played** —
+they are playable drafts. See [`docs/MAP-AUDIT.md`](docs/MAP-AUDIT.md) for what
+is verified, what is not, and what is left to do.
 
 - **Main menu** with map select and a choice of starting view (3D or 2D).
 - **Five maps that are different shapes, not different colours.** Each one is
@@ -56,6 +60,9 @@ Phase 1 is **complete**.
   | **Dustline** | a **tight chain** of small rooms | nowhere to kite, every barrier a few strides away, near-total darkness | each room 1.2 lower than the last |
   | **Tidewater** | an **open pier** with no perimeter at all | the deck edge is the boundary; they come up on both flanks | a water plane with hard-edged decking above it |
   | **Deepcut** | a **hub with three spokes** | you start at the bottom of the bowl and pick a direction | four working levels: −4, 0, +2, −1 |
+
+  Blacksite is finished; the other four are **drafts pending audit** — see
+  [`docs/MAP-AUDIT.md`](docs/MAP-AUDIT.md).
 - **Point-gated rooms** — every map gates its deeper areas behind doors with a
   keypad and a price on the sign, and boarded barriers the zombies breach through.
 - **Two renderers over one simulation** — a Three.js third-person view and a

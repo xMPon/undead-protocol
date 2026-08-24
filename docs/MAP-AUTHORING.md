@@ -5,6 +5,11 @@ Every map in Undead Protocol is a single **`MapDef`** object (defined in
 [`src/data/map_blacksite.ts`](../src/data/map_blacksite.ts) is the **reference
 map** — the fastest way to build a new one is to copy it and change the numbers.
 
+> **Status:** Blacksite is finished. Coldstep, Dustline, Tidewater and Deepcut
+> are **drafts awaiting audit** — correct data, but unseen and unplayed. Read
+> [`MAP-AUDIT.md`](MAP-AUDIT.md) before treating any of them as a reference, and
+> add your own map to its table when you build one.
+
 Nothing about a map is hard-coded in the engine: the same simulation and both
 renderers read whatever `MapDef` you hand `World`. This doc is the field-by-field
 blueprint.
@@ -326,6 +331,10 @@ npm test        # sim/terrain/collision tests run in Node
 npm run build   # tsc --noEmit + vite build
 npm run dev     # play it; press T to check the 2D relief view
 ```
+
+These checks are necessary and nowhere near sufficient: they verify the data, not
+the map. Budget for a play session per map on top, and record what you find in
+[`MAP-AUDIT.md`](MAP-AUDIT.md).
 
 [`tests/map.test.ts`](../tests/map.test.ts) already runs the data-integrity
 checks that a prop pass tends to break — props inside `bounds`, a clear spawn,
