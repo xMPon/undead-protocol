@@ -44,16 +44,33 @@ survive.
 
 ## What's in Phase 1
 
-- **Main menu** with a choice of starting view (3D or 2D).
-- **One map — "Blacksite":** a spawn room and a vault room split by a 750-point
-  door, with boarded windows the zombies breach through.
+Phase 1 is **complete**.
+
+- **Main menu** with map select and a choice of starting view (3D or 2D).
+- **Five maps**, each with its own ground, weather, elevation and dressing:
+  | Map | Setting | Areas |
+  |---|---|---|
+  | **Blacksite** | research compound at dusk | 4 |
+  | **Coldstep** | arctic listening post under the drifts | 2 |
+  | **Dustline** | desert fuel depot, an L-shaped compound | 3 |
+  | **Tidewater** | container terminal on a dead harbour | 3 |
+  | **Deepcut** | open-cast quarry with the pit four units down | 3 |
+- **Point-gated rooms** — every map gates its deeper areas behind doors with a
+  keypad and a price on the sign, and boarded barriers the zombies breach through.
 - **Two renderers over one simulation** — a Three.js third-person view and a
   Canvas 2D top-down view, swappable live with no effect on game state.
 - **Shooting** — hitscan guns with spread, per-weapon fire rate, magazines,
   reloads, and reserve ammo. Bullets are stopped by walls.
-- **Four weapons** — the starting **M9 Sidearm** plus three wall-buys
-  (**PDW-57** SMG, **KR-12** rifle, **Breacher-12** shotgun).
-- **Zombies** that rise from barriers, flow-field pathfind to you, and swarm.
+- **Six weapons** — the starting **M9 Sidearm** plus five wall-buys
+  (**PDW-57** SMG, **KR-12** rifle, **Breacher-12** shotgun, **Lancer-7**
+  marksman rifle, **Havoc-9** LMG). The carried model is built from the weapon's
+  own stats, so it looks like what it is.
+- **Zombies** that rise from barriers, flow-field pathfind to you, and swarm —
+  jointed bodies with a walk cycle, a grab, a collapse, and per-body variation.
+- **Graffiti, stencils and stains** on the walls and floors, walk-in shelters,
+  and diegetic lighting: lamps, headlights, floodlights, searchlights and drums.
+- **Adjustable controls** — look sensitivity, keyboard turn speed and invert-Y,
+  saved between sessions.
 - **Round system** with Black-Ops-style health/count scaling and a breather
   between rounds.
 - **Points economy** — earn on hits and kills; spend on wall-buys and the door.

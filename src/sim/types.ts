@@ -120,7 +120,12 @@ export interface DoorDef {
 }
 
 export interface MapDef {
+  /** Stable key. Referenced by the map-select menu and saved settings — append,
+   *  never rename, the same rule weapon ids follow. */
+  id: string;
   name: string;
+  /** One line for the map-select card. */
+  blurb?: string;
   bounds: WallRect;
   walls: WallRect[];
   barriers: BarrierDef[];

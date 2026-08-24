@@ -43,7 +43,8 @@ function zombieSpeed(round: number): number {
 }
 
 export class World {
-  readonly def: MapDef;
+  /** The map currently loaded. Swapped by `loadMap`, never mutated in place. */
+  def: MapDef;
   map: GameMap;
   player: Player;
   zombies: Zombie[] = [];
@@ -79,15 +80,27 @@ export class World {
   private prevReload = false;
 
   constructor(def: MapDef = BLACKSITE) {
+    // Assigned properly by loadMap; these keep TypeScript happy about definite
+    // assignment without duplicating the setup.
     this.def = def;
     this.map = new GameMap(def);
     this.player = new Player(def.playerSpawn);
     this.terrain = new Terrain(def.terrain ?? FLAT_TERRAIN);
-    this.player.footY = this.terrain.heightAt(this.player.pos.x, this.player.pos.y);
-    this.buildObstacles();
     this.flow = new FlowField(def.bounds, 0.8);
-    this.flow.rebuild(this.map.walls);
-    this.flow.compute(this.player.pos);
+    this.loadMap(def);
+  }
+
+  /**
+   * Point the simulation at a different map and start it fresh. Everything
+   * derived from the map — terrain, obstacles, the flow field's own grid — is
+   * rebuilt; the presentation callbacks wired by main.ts are preserved, which is
+   * why this exists rather than constructing a new World.
+   */
+  loadMap(def: MapDef): void {
+    this.def = def;
+    this.terrain = new Terrain(def.terrain ?? FLAT_TERRAIN);
+    this.flow = new FlowField(def.bounds, 0.8);
+    this.reset();
   }
 
   /** Rebuild the height-aware obstacle list (walls + closed doors + solid props). */
@@ -114,7 +127,7 @@ export class World {
     this.obstacles = obs;
   }
 
-  /** Reset to a fresh game while preserving wired callbacks. */
+  /** Reset to a fresh game on the current map, preserving wired callbacks. */
   reset(): void {
     this.map = new GameMap(this.def);
     this.player = new Player(this.def.playerSpawn);

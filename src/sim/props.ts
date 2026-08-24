@@ -75,17 +75,21 @@ export const PROP_SPECS: Record<PropKind, PropSpec> = {
   fence: { hx: 1.6, hy: 0.08, height: 2.4, color: 0x6b7076 },
   generator: { hx: 1.1, hy: 0.6, height: 1.4, color: 0x5a6a4a },
   tank: { hx: 0.95, hy: 0.95, height: 4.2, color: 0x7d7f78, round: true },
+  // Legs 2.6 apart, not 2.0: the flow field inflates every wall by the zombie
+  // radius, and a narrower frame left a walkable band thinner than one grid cell
+  // — so whether you could path under a tower depended on where it landed on the
+  // grid. This spacing clears it by a comfortable margin.
   tower: {
-    hx: 1.2,
-    hy: 1.2,
+    hx: 1.5,
+    hy: 1.5,
     height: 6.4,
     color: 0x50565c,
     emits: true,
     parts: [
-      { dx: -1.0, dy: -1.0, hx: 0.22, hy: 0.22 },
-      { dx: 1.0, dy: -1.0, hx: 0.22, hy: 0.22 },
-      { dx: -1.0, dy: 1.0, hx: 0.22, hy: 0.22 },
-      { dx: 1.0, dy: 1.0, hx: 0.22, hy: 0.22 },
+      { dx: -1.3, dy: -1.3, hx: 0.2, hy: 0.2 },
+      { dx: 1.3, dy: -1.3, hx: 0.2, hy: 0.2 },
+      { dx: -1.3, dy: 1.3, hx: 0.2, hy: 0.2 },
+      { dx: 1.3, dy: 1.3, hx: 0.2, hy: 0.2 },
     ],
   },
   antenna: { hx: 0.35, hy: 0.35, height: 9.5, color: 0x585e64, round: true },

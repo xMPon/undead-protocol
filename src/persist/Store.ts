@@ -12,9 +12,11 @@ export interface Settings {
   /** Keyboard turn-rate multiplier (Q/E and the arrow keys). */
   turnSpeed: number;
   invertY: boolean;
+  /** Last map deployed to, so the menu comes back where you left it. */
+  mapId: string;
 }
 
-export const DEFAULT_SETTINGS: Settings = { lookSensitivity: 1, turnSpeed: 1, invertY: false };
+export const DEFAULT_SETTINGS: Settings = { lookSensitivity: 1, turnSpeed: 1, invertY: false, mapId: "blacksite" };
 
 const clampNum = (v: unknown, lo: number, hi: number, fallback: number): number =>
   typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : fallback;
@@ -44,6 +46,7 @@ export const Store = {
         lookSensitivity: clampNum(parsed.lookSensitivity, 0.2, 4, DEFAULT_SETTINGS.lookSensitivity),
         turnSpeed: clampNum(parsed.turnSpeed, 0.2, 4, DEFAULT_SETTINGS.turnSpeed),
         invertY: parsed.invertY === true,
+        mapId: typeof parsed.mapId === "string" ? parsed.mapId : DEFAULT_SETTINGS.mapId,
       };
     } catch {
       return { ...DEFAULT_SETTINGS };

@@ -21,7 +21,9 @@ const wall = (minX: number, minY: number, maxX: number, maxY: number): WallRect 
 
 // Spawn yard interior: x[-26,26] y[-18,18].  Vault yard interior: x[26,66] y[-18,18].
 export const BLACKSITE: MapDef = {
+  id: "blacksite",
   name: "Blacksite",
+  blurb: "A research compound at dusk. Four yards, deep cover, and the lights still on.",
   bounds: wall(-30, -22, 71, 45),
   playerSpawn: { x: 0, y: 0 },
   startRegions: [0],
@@ -181,7 +183,7 @@ export const BLACKSITE: MapDef = {
     { kind: "container", pos: { x: 59, y: 10.5 }, rot: 0.3, color: 0xb0902a },
     { kind: "crate", pos: { x: 32, y: -14 } },
     { kind: "crate", pos: { x: 33, y: -13.4 } },
-    { kind: "crate", pos: { x: 60, y: -16 } },
+    { kind: "crate", pos: { x: 59.6, y: -16.2 } },
     { kind: "barrel", pos: { x: 46, y: 14 }, color: 0x3a6ac8 },
 
     // --- Extra spawn-yard clutter (CoD-style cover) ---
@@ -189,8 +191,8 @@ export const BLACKSITE: MapDef = {
     { kind: "sandbag", pos: { x: -20.9, y: -15.3 }, rot: 0.1 },
     { kind: "sandbag", pos: { x: -19.8, y: -14.6 }, rot: 0.1 },
     { kind: "crate", pos: { x: 16, y: -15 } },
-    { kind: "crate", pos: { x: 16.7, y: -14.6 }, scale: 0.8 },
-    { kind: "crate", pos: { x: 15.4, y: -14.8 }, scale: 0.9 },
+    { kind: "crate", pos: { x: 17.1, y: -14.3 }, scale: 0.8 },
+    { kind: "crate", pos: { x: 14.9, y: -14.6 }, scale: 0.9 },
     { kind: "container", pos: { x: 6, y: -15 } },
     { kind: "container", pos: { x: 10, y: -15 }, color: 0x6a4a8a },
     { kind: "barrel", pos: { x: -4, y: -16 }, color: 0xc0a03a },
@@ -208,7 +210,7 @@ export const BLACKSITE: MapDef = {
     { kind: "container", pos: { x: 48, y: 4 } },
     { kind: "container", pos: { x: 52, y: 4 }, color: 0x6a6a2a },
     { kind: "crate", pos: { x: 30, y: -11 } },
-    { kind: "crate", pos: { x: 30.7, y: -10.6 }, scale: 0.8 },
+    { kind: "crate", pos: { x: 31.1, y: -10.4 }, scale: 0.8 },
     { kind: "barrel", pos: { x: 56, y: 15 }, color: 0x3a6ac8 },
     { kind: "barrel", pos: { x: 56.6, y: 14.5 }, color: 0x8a2a2a },
     { kind: "lamp", pos: { x: 46, y: 4 } },

@@ -5,12 +5,14 @@
 // FlowField, so they fail the same way the game would.
 
 import { describe, it, expect } from "vitest";
-import { BLACKSITE } from "../src/data/map_blacksite";
+import { MAPS, getMap, DEFAULT_MAP } from "../src/data/maps";
 import { GameMap, INTERACT_RANGE } from "../src/sim/Map";
 import { World } from "../src/sim/World";
 import { resolveCircleObstacles } from "../src/sim/collision";
 import { FlowField } from "../src/sim/pathing";
-import { PROP_SPECS, footprintExtents, isSolidProp, propColliders } from "../src/sim/props";
+import { PROP_SPECS, footprintExtents, isSolidProp, propColliders, colliderAabb } from "../src/sim/props";
+import type { PropCollider } from "../src/sim/props";
+import { emptyIntent } from "../src/sim/types";
 import { getWeapon } from "../src/data/weapons";
 import { Player } from "../src/sim/Player";
 import type { MapDef, PropDef, WallRect } from "../src/sim/types";
@@ -18,7 +20,7 @@ import type { Vec2 } from "../src/core/math";
 
 const PLAYER_RADIUS = new Player({ x: 0, y: 0 }).radius;
 
-const MAPS: Array<[string, MapDef]> = [["Blacksite", BLACKSITE]];
+const MAP_CASES: Array<[string, MapDef]> = MAPS.map((m) => [m.name, m]);
 
 /** The collision rectangle a placed prop contributes (solid props only). */
 function propRect(p: PropDef): WallRect {
@@ -28,6 +30,23 @@ function propRect(p: PropDef): WallRect {
 
 function inflatedContains(r: WallRect, p: Vec2, pad: number): boolean {
   return p.x > r.minX - pad && p.x < r.maxX + pad && p.y > r.minY - pad && p.y < r.maxY + pad;
+}
+
+/**
+ * Conservative overlap test between two prop colliders: exact for two discs,
+ * bounding-box for anything with a box in it. Box-vs-box can therefore flag a
+ * near-miss between two rotated props, which is the safe direction to err.
+ */
+function collidersIntersect(a: PropCollider, b: PropCollider): boolean {
+  if (a.radius !== undefined && b.radius !== undefined) {
+    const reach = a.radius + b.radius - 0.05;
+    return Math.hypot(a.cx - b.cx, a.cy - b.cy) < reach;
+  }
+  const ra = colliderAabb(a);
+  const rb = colliderAabb(b);
+  const ox = Math.min(ra.maxX, rb.maxX) - Math.max(ra.minX, rb.minX);
+  const oy = Math.min(ra.maxY, rb.maxY) - Math.max(ra.minY, rb.minY);
+  return ox > 0.05 && oy > 0.05;
 }
 
 /** Whether the player cage admits this position (matching World's clamp). */
@@ -50,7 +69,7 @@ function breachRoute(pos: Vec2, inward: Vec2): Vec2[] {
   return [-1, 0, 1, 2, 3].map((k) => ({ x: pos.x + inward.x * k, y: pos.y + inward.y * k }));
 }
 
-describe.each(MAPS)("%s map data", (_name, def) => {
+describe.each(MAP_CASES)("%s map data", (_name, def) => {
   it("places every prop inside the terrain/flow-field bounds", () => {
     for (const p of def.props ?? []) {
       const { ex, ey } = footprintExtents(p.kind, p.scale ?? 1, p.rot ?? 0);
@@ -164,6 +183,23 @@ describe.each(MAPS)("%s map data", (_name, def) => {
     }
   });
 
+  it("does not let one prop grow through another", () => {
+    // Props are authored by hand from coordinates, and two solids sharing space
+    // is invisible in a diff but obvious the moment you walk past it.
+    const pieces: Array<{ label: string; c: PropCollider }> = [];
+    for (const p of solidProps(def)) {
+      for (const c of propColliders(p)) pieces.push({ label: `${p.kind} at ${p.pos.x},${p.pos.y}`, c });
+    }
+    for (let i = 0; i < pieces.length; i++) {
+      for (let j = i + 1; j < pieces.length; j++) {
+        const a = pieces[i];
+        const b = pieces[j];
+        if (a.label === b.label) continue; // different parts of the same prop
+        expect.soft(collidersIntersect(a.c, b.c), `${a.label} grows through ${b.label}`).toBe(false);
+      }
+    }
+  });
+
   it("keeps decals inside the map and legible", () => {
     for (const d of def.decals ?? []) {
       const label = `${d.kind} at ${d.pos.x},${d.pos.y}`;
@@ -207,6 +243,45 @@ describe.each(MAPS)("%s map data", (_name, def) => {
     }
     for (const wb of map.activeWallBuys()) {
       expect(flow.reachable(wb.pos), `wall-buy ${wb.pos.x},${wb.pos.y} is walled in`).toBe(true);
+    }
+  });
+});
+
+describe("the map roster", () => {
+  it("gives every map a unique id and a blurb for the menu", () => {
+    const ids = MAPS.map((m) => m.id);
+    expect(new Set(ids).size, "duplicate map id").toBe(ids.length);
+    for (const m of MAPS) {
+      expect.soft(m.id, `${m.name} has no id`).toBeTruthy();
+      expect.soft(m.blurb, `${m.name} has no blurb`).toBeTruthy();
+      expect.soft(getMap(m.id)).toBe(m);
+    }
+  });
+
+  it("falls back to the default map rather than throwing on a stale id", () => {
+    expect(getMap("a-map-that-was-deleted")).toBe(DEFAULT_MAP);
+  });
+
+  it("plays every map headlessly without stalling", () => {
+    // The real proof a map works: load it into the simulation, let a round run,
+    // and check the horde actually reaches the player from its barriers.
+    for (const def of MAPS) {
+      const w = new World(def);
+      expect(w.def.id).toBe(def.id);
+      let sawZombie = false;
+      let closed = false;
+      const start = { ...w.player.pos };
+      for (let i = 0; i < 3000; i++) {
+        w.update(1 / 60, emptyIntent());
+        if (w.zombies.length > 0) {
+          sawZombie = true;
+          const near = Math.min(...w.zombies.map((z) => Math.hypot(z.pos.x - start.x, z.pos.y - start.y)));
+          if (near < 3) closed = true;
+        }
+        if (closed) break;
+      }
+      expect.soft(sawZombie, `${def.name} never spawned a zombie`).toBe(true);
+      expect.soft(closed, `${def.name} spawns zombies that cannot reach the player`).toBe(true);
     }
   });
 });

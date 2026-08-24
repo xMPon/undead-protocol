@@ -4,9 +4,9 @@ Remaining work, grouped by area. Items are ordered roughly by dependency and pla
 
 ## Maps and progression
 
-- [ ] Add the four remaining maps planned for the first release phase.
-- [ ] Build a map-select menu and pass the selected map into the shared simulation.
-- [x] Add more map regions with meaningful unlock routes and wall buys. *(Blacksite: substation + cold store; the other maps still need theirs.)*
+- [x] Add the four remaining maps planned for the first release phase. *(Coldstep, Dustline, Tidewater, Deepcut.)*
+- [x] Build a map-select menu and pass the selected map into the shared simulation.
+- [x] Add more map regions with meaningful unlock routes and wall buys. *(All five maps ship 2–4 areas.)*
 - [ ] Add the power switch and connect it to map progression.
 - [ ] Add a second fully featured map for the later progression phase.
 

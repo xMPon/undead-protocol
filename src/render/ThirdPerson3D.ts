@@ -6,7 +6,7 @@ import * as THREE from "three";
 import type { Renderer } from "./Renderer";
 import type { World } from "../sim/World";
 import type { Input } from "../core/Input";
-import type { Intent, ThemeDef, PropDef } from "../sim/types";
+import type { Intent, ThemeDef, PropDef, MapDef } from "../sim/types";
 import { emptyIntent } from "../sim/types";
 import type { Zombie } from "../sim/Zombie";
 import { ZOMBIE_RISE_TIME } from "../sim/Zombie";
@@ -151,6 +151,10 @@ export class ThirdPerson3D implements Renderer {
   private tracers!: THREE.LineSegments;
   private tracerPos = new Float32Array(64 * 2 * 3);
   private doorMeshes = new Map<string, THREE.Object3D>();
+  /** Everything belonging to the loaded map, so switching maps is one teardown. */
+  private mapRoot = new THREE.Group();
+  private builtFor: MapDef | null = null;
+  private actorsBuilt = false;
   private zombiePool: ZombieSlot[] = [];
   private hemi!: THREE.HemisphereLight;
   private dirLight!: THREE.DirectionalLight;
@@ -212,12 +216,57 @@ export class ThirdPerson3D implements Renderer {
     this.tracers = new THREE.LineSegments(tgeo, new THREE.LineBasicMaterial({ color: 0xfff2a0, transparent: true, opacity: 0.85 }));
     this.tracers.frustumCulled = false;
     this.scene.add(this.tracers);
+    this.scene.add(this.mapRoot);
   }
 
-  private builtStatics = false;
+  /** Free every GPU resource the previous map owned. */
+  private teardownMap(): void {
+    this.mapRoot.traverse((o) => {
+      if (o instanceof THREE.Mesh || o instanceof THREE.Points || o instanceof THREE.Sprite) {
+        o.geometry?.dispose();
+        const mat = o.material as THREE.Material | THREE.Material[];
+        // Textures are cached module-side and shared between maps, so materials
+        // are disposed but their maps deliberately are not.
+        for (const m of Array.isArray(mat) ? mat : [mat]) m?.dispose();
+      }
+    });
+    this.mapRoot.clear();
+    this.emitters = [];
+    this.plumes = [];
+    this.beacons = [];
+    this.doorMeshes.clear();
+    for (const light of this.lightPool) light.intensity = 0;
+  }
+
+  /** One-off actors that outlive any single map: the player rig and blood pool. */
+  private ensureActors(): void {
+    if (this.actorsBuilt) return;
+    this.actorsBuilt = true;
+
+    this.playerRig = makePlayerRig();
+    this.player = this.playerRig.group;
+    this.playerMats.push(...this.playerRig.flesh);
+    this.scene.add(this.player);
+
+    for (let i = 0; i < 6; i++) {
+      const pts = makeBloodBurst(14);
+      this.scene.add(pts);
+      this.bursts.push({ pts, vel: new Float32Array(14 * 3), life: 0 });
+    }
+
+    // Airborne dust — a fixed cloud the camera drags around with it, so a few
+    // hundred motes cover a map of any size.
+    this.dust = makeDustField(320, 64, 9);
+    this.scene.add(this.dust);
+    this.stars = makeStarField(360, 280);
+    this.scene.add(this.stars);
+  }
+
   private buildFromWorld(world: World): void {
-    if (this.builtStatics) return;
-    this.builtStatics = true;
+    this.ensureActors();
+    if (this.builtFor === world.def) return;
+    if (this.builtFor) this.teardownMap();
+    this.builtFor = world.def;
     const b = world.def.bounds;
     const th = world.def.theme ?? DEFAULT_THEME;
     const height = (x: number, y: number): number => world.terrain.heightAt(x, y);
@@ -232,9 +281,7 @@ export class ThirdPerson3D implements Renderer {
 
     // Gradient dusk sky dome (warm horizon derived from the sun colour).
     const horizon = new THREE.Color(th.dir).lerp(new THREE.Color(th.sky), 0.45).getHex();
-    this.scene.add(makeSkyDome(th.sky, horizon));
-    this.stars = makeStarField(360, 280);
-    this.scene.add(this.stars);
+    this.mapRoot.add(makeSkyDome(th.sky, horizon));
 
     // Sun casts shadows sized to the map bounds.
     const mcx = (b.minX + b.maxX) / 2;
@@ -259,12 +306,7 @@ export class ThirdPerson3D implements Renderer {
     this.dirLight.shadow.normalBias = 0.03;
 
     // Ground: displaced terrain mesh.
-    this.scene.add(buildTerrainMesh(b, height, th.ground, 1));
-
-    // Airborne dust — a fixed cloud the camera drags around with it, so a few
-    // hundred motes cover a map of any size.
-    this.dust = makeDustField(320, 64, 9);
-    this.scene.add(this.dust);
+    this.mapRoot.add(buildTerrainMesh(b, height, th.ground, 1));
 
     // Walls: rooted below the floor so they never float on uneven ground.
     const wallMat = wallMaterial();
@@ -278,7 +320,7 @@ export class ThirdPerson3D implements Renderer {
       mesh.position.set(cx, height(cx, cz) + WALL_H / 2 - 0.6, cz);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
-      this.scene.add(mesh);
+      this.mapRoot.add(mesh);
     }
 
     // Doors get their own mesh each, so any one of them can open independently.
@@ -292,7 +334,7 @@ export class ThirdPerson3D implements Renderer {
       const mesh = makeDoorMesh(acrossX ? dw : dd, WALL_H, (acrossX ? dd : dw) * 0.8, door.name ?? "Door", door.cost);
       if (!acrossX) mesh.rotation.y = Math.PI / 2;
       mesh.position.set(dcx, height(dcx, dcz) + WALL_H / 2 - 0.35, dcz);
-      this.scene.add(mesh);
+      this.mapRoot.add(mesh);
       this.doorMeshes.set(door.id, mesh);
     }
 
@@ -310,7 +352,7 @@ export class ThirdPerson3D implements Renderer {
         mesh.rotation.y = -(d.rot ?? 0) + Math.PI / 2;
         mesh.position.set(d.pos.x, gy + h, d.pos.y);
       }
-      this.scene.add(mesh);
+      this.mapRoot.add(mesh);
     }
 
     // Wall-buy markers.
@@ -323,10 +365,10 @@ export class ThirdPerson3D implements Renderer {
       );
       box.position.set(wb.pos.x, gy + 1.1, wb.pos.y);
       box.castShadow = true;
-      this.scene.add(box);
+      this.mapRoot.add(box);
       const label = makeLabelSprite(def.name, `$${def.wallCost || def.ammoCost}`);
       label.position.set(wb.pos.x, gy + 2.1, wb.pos.y);
-      this.scene.add(label);
+      this.mapRoot.add(label);
     }
 
     // Cover props, plus the diegetic light rig: every emissive kind gets a real
@@ -341,7 +383,7 @@ export class ThirdPerson3D implements Renderer {
       // three rotates the opposite way about Y, so negate to keep the 3D and 2D
       // views showing the same thing (and headlights on the front of the car).
       g.rotation.y = -rot;
-      this.scene.add(g);
+      this.mapRoot.add(g);
       this.addPropFx(prop, g, gy, scl, rot);
     }
 
@@ -350,7 +392,7 @@ export class ThirdPerson3D implements Renderer {
       const y = height(L.pos.x, L.pos.y) + (L.height ?? 3);
       const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshBasicMaterial({ color: L.color }));
       bulb.position.set(L.pos.x, y, L.pos.y);
-      this.scene.add(bulb);
+      this.mapRoot.add(bulb);
       this.addEmitter({ x: L.pos.x, y, z: L.pos.y }, L.color, L.intensity, L.range, "steady");
     }
 
@@ -358,18 +400,6 @@ export class ThirdPerson3D implements Renderer {
     this.emitterDist = new Float64Array(this.emitters.length);
     this.emitterRank = this.emitters.map((_, i) => i);
 
-    // Player: a jointed rig with a weapon socket, posed every frame.
-    this.playerRig = makePlayerRig();
-    this.player = this.playerRig.group;
-    this.playerMats.push(...this.playerRig.flesh);
-    this.scene.add(this.player);
-
-    // Blood bursts, pooled and reused.
-    for (let i = 0; i < 6; i++) {
-      const pts = makeBloodBurst(14);
-      this.scene.add(pts);
-      this.bursts.push({ pts, vel: new Float32Array(14 * 3), life: 0 });
-    }
   }
 
   /** Orient a light cone so its narrow end sits at the source and it points `dir`. */
@@ -394,7 +424,7 @@ export class ThirdPerson3D implements Renderer {
     } = {},
   ): void {
     const { glow = null, cone = null, flame = null } = parts;
-    if (cone) this.scene.add(cone);
+    if (cone) this.mapRoot.add(cone);
     const glowMat =
       glow instanceof THREE.Mesh && glow.material instanceof THREE.MeshStandardMaterial ? glow.material : null;
     this.emitters.push({
@@ -416,7 +446,7 @@ export class ThirdPerson3D implements Renderer {
   private addPlume(x: number, y: number, z: number, count: number, radius: number, plumeHeight: number, speed: number, color: number): void {
     const pts = makeSmokePlume(count, radius, plumeHeight, color);
     pts.position.set(x, y, z);
-    this.scene.add(pts);
+    this.mapRoot.add(pts);
     this.plumes.push({ pts, speed, height: plumeHeight, radius });
   }
 

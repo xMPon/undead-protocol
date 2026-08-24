@@ -13,6 +13,7 @@ import { Hud } from "./ui/Hud";
 import { Menu, PauseMenu } from "./ui/Menu";
 import { GameOver } from "./ui/GameOver";
 import { Store } from "./persist/Store";
+import { getMap } from "./data/maps";
 
 type State = "menu" | "playing" | "paused" | "over";
 
@@ -47,9 +48,13 @@ world.onRoundStart = () => sound.roundStart();
 world.onDeath = () => sound.death();
 
 // ---- state transitions ----
-function startGame(view: ViewName): void {
+function startGame(view: ViewName, mapId: string = world.def.id): void {
   sound.resume();
-  world.reset();
+  const def = getMap(mapId);
+  // loadMap rebuilds everything derived from the map; reset is the cheaper path
+  // when redeploying to the one already loaded.
+  if (def !== world.def) world.loadMap(def);
+  else world.reset();
   vm.setActive(view, input);
   menu.hide();
   gameover.hide();
@@ -92,7 +97,7 @@ input.onLockChange = (locked) => {
   if (!locked && state === "playing" && vm.currentName() === "3d") pauseGame();
 };
 
-menu.onStart = (v) => startGame(v);
+menu.onStart = (v, mapId) => startGame(v, mapId);
 pause.onResume = () => resumeGame();
 pause.onQuit = () => toMenu();
 gameover.onRestart = () => startGame(vm.currentName());

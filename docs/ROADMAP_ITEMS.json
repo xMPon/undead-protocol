@@ -38,15 +38,15 @@
     "id": "phase-1-map-select-menu",
     "title": "Ship map-select menu",
     "phase": "Phase 1",
-    "status": "todo",
-    "details": "Add a map-select menu so players can choose between maps instead of swapping the default map in code."
+    "status": "done",
+    "details": "Map-select menu on the main screen, backed by a MAPS roster in data/maps.ts. World.loadMap swaps the loaded map in place so wired callbacks survive, and the 3D renderer tears down and rebuilds its map scene. The chosen map persists between sessions."
   },
   {
     "id": "phase-1-four-more-maps",
     "title": "Build four additional Phase 1 maps",
     "phase": "Phase 1",
-    "status": "todo",
-    "details": "Create the remaining planned maps so Phase 1 has a broader playable map set beyond Blacksite."
+    "status": "done",
+    "details": "Four more maps beside Blacksite: Coldstep (arctic outpost, snow, 2 areas), Dustline (desert fuel depot, sand, L-shaped, 3 areas), Tidewater (harbour container terminal, dock, three yards in a line, 3 areas) and Deepcut (open-cast quarry, terraced, pit four units down, 3 areas). Each has its own terrain, theme, dressing, decals and wall-buy layout, and all five run the same data-integrity and headless play tests."
   },
   {
     "id": "phase-2-perks-and-cache",

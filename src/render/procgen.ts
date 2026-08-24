@@ -870,29 +870,30 @@ export function makePropMesh(kind: PropKind, scale = 1, color?: number): THREE.G
     case "tower": {
       // Guard tower: legs + braces + railed platform + roof, floodlit underneath.
       const steel = metalMaterial(color ?? 0x50565c, 0.7);
-      for (const [lx, lz] of [[-1.0, -1.0], [1.0, -1.0], [-1.0, 1.0], [1.0, 1.0]] as const) {
-        at(cyl(0.1, 0.13, 4.4, steel, 6), lx, 2.2, lz);
+      for (const [lx, lz] of [[-1.3, -1.3], [1.3, -1.3], [-1.3, 1.3], [1.3, 1.3]] as const) {
+        at(cyl(0.11, 0.14, 4.4, steel, 6), lx, 2.2, lz);
       }
-      for (const [bx, bz, ry] of [[0, -1.0, 0], [0, 1.0, 0], [-1.0, 0, Math.PI / 2], [1.0, 0, Math.PI / 2]] as const) {
+      for (const [bx, bz, ry] of [[0, -1.3, 0], [0, 1.3, 0], [-1.3, 0, Math.PI / 2], [1.3, 0, Math.PI / 2]] as const) {
         for (const tilt of [0.42, -0.42]) {
-          const brace = box(2.6, 0.09, 0.09, steel);
+          const brace = box(3.2, 0.09, 0.09, steel);
           brace.rotation.set(0, ry, tilt);
           at(brace, bx, 2.2, bz);
         }
       }
-      at(box(2.6, 0.16, 2.6, metalMaterial(0x3e444a, 0.85)), 0, 4.5, 0);
+      at(box(3.2, 0.16, 3.2, metalMaterial(0x3e444a, 0.85)), 0, 4.5, 0);
       const railMat = metalMaterial(0x4a5054, 0.8);
-      for (const [rx, rz, w, d] of [[0, -1.25, 2.6, 0.08], [0, 1.25, 2.6, 0.08], [-1.25, 0, 0.08, 2.6], [1.25, 0, 0.08, 2.6]] as const) {
+      for (const [rx, rz, w, d] of [[0, -1.55, 3.2, 0.08], [0, 1.55, 3.2, 0.08], [-1.55, 0, 0.08, 3.2], [1.55, 0, 0.08, 3.2]] as const) {
         at(box(w, 0.08, d, railMat), rx, 5.4, rz);
         at(box(w, 0.08, d, railMat), rx, 4.95, rz);
       }
-      for (const [px, pz] of [[-1.25, -1.25], [1.25, -1.25], [-1.25, 1.25], [1.25, 1.25]] as const) {
+      for (const [px, pz] of [[-1.55, -1.55], [1.55, -1.55], [-1.55, 1.55], [1.55, 1.55]] as const) {
         at(cyl(0.05, 0.05, 1.0, railMat, 5), px, 5.1, pz);
       }
-      at(box(2.9, 0.14, 2.9, metalMaterial(0x33383d, 0.9)), 0, 6.3, 0);
+      at(box(3.5, 0.14, 3.5, metalMaterial(0x33383d, 0.9)), 0, 6.3, 0);
+      for (const [px, pz] of [[-1.55, -1.55], [1.55, 1.55]] as const) at(cyl(0.06, 0.06, 1.1, railMat, 5), px, 5.75, pz);
       const head = box(0.5, 0.3, 0.7, emissive(0xfff0cc, 1.8));
       head.name = "glow";
-      head.position.set(1.0 * scale, 6.05 * scale, 0);
+      head.position.set(1.3 * scale, 6.05 * scale, 0);
       group.add(head);
       return group;
     }

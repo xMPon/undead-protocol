@@ -52,10 +52,12 @@ changes nothing about game state.
 | `render/ViewManager.ts` | holds both renderers, keeps one visible, toggles them |
 | `render/procgen.ts` | procedural PBR-ish materials (albedo + **normal maps**), terrain mesh, sky dome, prop meshes, jointed character rigs, weapon models, decal textures — no asset files |
 | `data/weapons.ts` | `WEAPONS` registry (original, non-trademarked designations) |
-| `data/map_blacksite.ts` | the reference map "Blacksite" — walls, barriers, buys, door, terrain, theme, props, lights, `playBounds` |
+| `data/maps.ts` | the map roster (`MAPS`, `getMap`) the select menu and saved settings read |
+| `data/map_blacksite.ts` | the reference map "Blacksite" — walls, barriers, buys, doors, terrain, theme, props, lights, decals, `playBounds` |
+| `data/map_coldstep.ts` … `map_deepcut.ts` | the other four Phase 1 maps (snow / sand / dock / quarry) |
 | `data/perks.ts` | perk registry — **reserved for Phase 2**, not wired yet |
 | `ui/Hud.ts` | round/points/health/ammo/prompt/banner + damage vignette (DOM) |
-| `ui/Menu.ts` | main menu (`Menu`) + pause overlay (`PauseMenu`) |
+| `ui/Menu.ts` | main menu with map select (`Menu`) + pause overlay and settings (`PauseMenu`) |
 | `ui/GameOver.ts` | death screen: round reached, best, restart/menu |
 | `persist/Store.ts` | localStorage best-round high score + persisted control `settings` (look sensitivity, turn speed, invert Y) |
 | `main.ts` | bootstrap + menu→playing→paused/over state machine; `window.__up` |
@@ -99,7 +101,8 @@ changes nothing about game state.
 ## Authoring maps
 
 Every map is a single `MapDef` (`src/sim/types.ts`) exported from a file in
-`src/data/`. **`data/map_blacksite.ts` is the reference/blueprint** — copy its
+`src/data/` and listed in `data/maps.ts` — adding it to that array is what puts
+it in the menu, and what puts it through every check in `tests/map.test.ts`. **`data/map_blacksite.ts` is the reference/blueprint** — copy its
 shape. The full field-by-field guide, coordinate conventions, prop/terrain/theme
 /light options, region+door progression, and a new-map checklist live in
 [`docs/MAP-AUTHORING.md`](docs/MAP-AUTHORING.md). To add a prop kind: extend
@@ -112,7 +115,7 @@ that convention.
 
 ## Roadmap
 
-- **Phase 1 — DONE (this repo):** main menu; map "Blacksite"; dual 3D/2D
+- **Phase 1 — COMPLETE:** main menu; map "Blacksite"; dual 3D/2D
   renderers; movement + hitscan shooting + reload; 4 weapons (M9 + PDW-57 /
   KR-12 / Breacher-12 wall-buys); flow-field zombie AI; round system with
   health/count scaling + intermissions; points economy (hits/kills, wall-buys,
@@ -145,7 +148,11 @@ that convention.
   graffiti/stencils/tallies/blood/scorch; walk-in `blockhouse` shelters; real
   door models with keypads and price signs; Escape reliably pauses by watching
   pointer-lock loss, which the browser eats the keydown for.
-  **Remaining:** the four other maps + a map-select menu.
+  **Map roster:** four more maps — Coldstep (snow), Dustline (sand, L-shaped),
+  Tidewater (dock, three yards in a line) and Deepcut (quarry, sunken pit) — plus
+  the map-select menu, `World.loadMap` for swapping maps in place, and a renderer
+  that tears its map scene down and rebuilds it.
+  **Phase 1 is complete.**
 - **Phase 2:** perks (Ironhide / Rapid Rounds / Fast Hands / Second Wind), the
   Mystery Box ("The Cache"), grenades, ADS, more map regions, board-up barriers.
 - **Phase 3:** weapon-upgrade station ("The Forge"), dog/Feral-Hound rounds,

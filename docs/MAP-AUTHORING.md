@@ -26,7 +26,9 @@ blueprint.
 
 ```ts
 export const MYMAP: MapDef = {
+  id: "my-map",                          // stable: the menu and settings store it
   name: "My Map",
+  blurb: "One line for the map-select card.",
   bounds: { minX, minY, maxX, maxY },   // terrain + flow-field extent (add margin!)
   playerSpawn: { x, y },
   startRegions: [0],                     // regions live before any door opens
@@ -42,9 +44,14 @@ export const MYMAP: MapDef = {
 };
 ```
 
-Then register it: `new World(MYMAP)` (Phase 1 defaults to `BLACKSITE`; a
-map-select menu is on the Phase-1 to-do list — until then, swap the default in
-`src/sim/World.ts` to test another map).
+Then add it to `MAPS` in [`src/data/maps.ts`](../src/data/maps.ts). That single
+line puts it in the map-select menu **and** enrols it in every data-integrity
+check in `tests/map.test.ts`, including a headless play test that proves the
+horde can reach the player from its barriers. Nothing else needs to know it
+exists.
+
+`id` is a stable contract — the menu and saved settings store it, so append,
+never rename. `blurb` is the one line shown on the menu card.
 
 ---
 

@@ -4,6 +4,7 @@
 
 import type { ViewName } from "../render/ViewManager";
 import { settings, updateSettings, DEFAULT_SETTINGS } from "../persist/Store";
+import { MAPS, getMap } from "../data/maps";
 
 const CONTROLS: Array<[string, string]> = [
   ["Move", "W A S D"],
@@ -22,9 +23,10 @@ const CONTROLS: Array<[string, string]> = [
 export class Menu {
   readonly el: HTMLDivElement;
   private view: ViewName = "3d";
+  private mapId = getMap(settings.mapId).id;
   private btn3d!: HTMLButtonElement;
   private btn2d!: HTMLButtonElement;
-  onStart?: (view: ViewName) => void;
+  onStart?: (view: ViewName, mapId: string) => void;
 
   constructor(parent: HTMLElement) {
     this.el = document.createElement("div");
@@ -32,6 +34,16 @@ export class Menu {
     this.el.innerHTML = `
       <h1>UNDEAD <span class="accent">PROTOCOL</span></h1>
       <div class="tagline">Survive the rounds. There is no evac.</div>
+      <div class="map-picker">
+        ${MAPS.map(
+          (m) => `
+          <button class="map-card" data-map="${m.id}">
+            <span class="mname">${m.name}</span>
+            <span class="mblurb">${m.blurb ?? ""}</span>
+            <span class="mmeta">${m.startRegions.length + m.doors.length} areas · ${m.wallBuys.length} wall guns</span>
+          </button>`,
+        ).join("")}
+      </div>
       <div class="menu-btns">
         <button class="btn" data-start>Deploy</button>
         <div style="display:flex;gap:10px">
@@ -42,7 +54,7 @@ export class Menu {
       <div class="controls">
         ${CONTROLS.map(([k, v]) => `<div>${k}</div><div class="k">${v}</div>`).join("")}
       </div>
-      <div class="credit">Phase 1 · Blacksite · open-source (MIT)</div>
+      <div class="credit">Phase 1 · ${MAPS.length} maps · open-source (MIT)</div>
     `;
     parent.appendChild(this.el);
 
@@ -50,8 +62,20 @@ export class Menu {
     this.btn2d = this.el.querySelector('[data-view="2d"]')!;
     this.btn3d.addEventListener("click", () => this.setView("3d"));
     this.btn2d.addEventListener("click", () => this.setView("2d"));
-    this.el.querySelector("[data-start]")!.addEventListener("click", () => this.onStart?.(this.view));
+    for (const card of this.el.querySelectorAll<HTMLButtonElement>("[data-map]")) {
+      card.addEventListener("click", () => this.setMap(card.dataset.map!));
+    }
+    this.el.querySelector("[data-start]")!.addEventListener("click", () => this.onStart?.(this.view, this.mapId));
     this.setView("3d");
+    this.setMap(this.mapId);
+  }
+
+  private setMap(id: string): void {
+    this.mapId = id;
+    updateSettings({ mapId: id });
+    for (const card of this.el.querySelectorAll<HTMLElement>("[data-map]")) {
+      card.classList.toggle("selected", card.dataset.map === id);
+    }
   }
 
   private setView(v: ViewName): void {
