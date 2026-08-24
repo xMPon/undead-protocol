@@ -46,7 +46,7 @@
     "title": "Build four additional Phase 1 maps",
     "phase": "Phase 1",
     "status": "done",
-    "details": "Four more maps beside Blacksite: Coldstep (arctic outpost, snow, 2 areas), Dustline (desert fuel depot, sand, L-shaped, 3 areas), Tidewater (harbour container terminal, dock, three yards in a line, 3 areas) and Deepcut (open-cast quarry, terraced, pit four units down, 3 areas). Each has its own terrain, theme, dressing, decals and wall-buy layout, and all five run the same data-integrity and headless play tests."
+    "details": "Four more maps beside Blacksite, each built around a different topology and its own terrain system rather than a reskin of the same yards: Coldstep (a ring around a sealed hangar, wind drifts, a twelve-unit whiteout, barriers on all four walls), Dustline (a tight chain of four small rooms in an L, each 1.2 units lower than the last, near-total darkness lit by fire barrels), Tidewater (an open pier with no perimeter at all, decking over a water plane, barriers along both long edges) and Deepcut (a hub with three spokes at four different working levels, spawning at the bottom of the bowl). All five run the same data-integrity and headless play tests."
   },
   {
     "id": "phase-2-perks-and-cache",

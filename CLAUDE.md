@@ -54,7 +54,7 @@ changes nothing about game state.
 | `data/weapons.ts` | `WEAPONS` registry (original, non-trademarked designations) |
 | `data/maps.ts` | the map roster (`MAPS`, `getMap`) the select menu and saved settings read |
 | `data/map_blacksite.ts` | the reference map "Blacksite" — walls, barriers, buys, doors, terrain, theme, props, lights, decals, `playBounds` |
-| `data/map_coldstep.ts` … `map_deepcut.ts` | the other four Phase 1 maps (snow / sand / dock / quarry) |
+| `data/map_coldstep.ts` … `map_deepcut.ts` | the other four Phase 1 maps — a ring, a tight chain of rooms, an open pier, a hub-and-spokes pit. Different **shapes**, not palettes |
 | `data/perks.ts` | perk registry — **reserved for Phase 2**, not wired yet |
 | `ui/Hud.ts` | round/points/health/ammo/prompt/banner + damage vignette (DOM) |
 | `ui/Menu.ts` | main menu with map select (`Menu`) + pause overlay and settings (`PauseMenu`) |
@@ -85,6 +85,10 @@ changes nothing about game state.
   the tab is backgrounded the RAF loop throttles, so verify the sim headlessly:
   loop `world.update(dt, intent)` and read `world.zombies`, `world.player`,
   `world.rounds`, `world.kills` directly.
+- **A gated region's barriers must open OUTWARD**, to the outside of the
+  compound — never into another region. The player cage is a union of rectangles
+  and cannot express a hole, so a barrier gap facing an area the player already
+  owns is a free way past the door it is supposed to be gated by.
 - **A prop's solids come from `propColliders`.** Collision obstacles and
   flow-field walls are both built from it, so what blocks the player, what blocks
   a zombie, and what you can see can never drift apart. Never re-derive a
@@ -148,9 +152,12 @@ that convention.
   graffiti/stencils/tallies/blood/scorch; walk-in `blockhouse` shelters; real
   door models with keypads and price signs; Escape reliably pauses by watching
   pointer-lock loss, which the browser eats the keydown for.
-  **Map roster:** four more maps — Coldstep (snow), Dustline (sand, L-shaped),
-  Tidewater (dock, three yards in a line) and Deepcut (quarry, sunken pit) — plus
-  the map-select menu, `World.loadMap` for swapping maps in place, and a renderer
+  **Map roster:** four more maps, each a different topology and terrain system —
+  Coldstep (a ring around a sealed hangar, wind drifts, whiteout), Dustline (a
+  tight chain of small rooms stepping 1.2 down at every doorway, near-dark),
+  Tidewater (an open pier with no perimeter, decking over a water plane) and
+  Deepcut (a hub with three spokes at four different heights) — plus the
+  map-select menu, `World.loadMap` for swapping maps in place, and a renderer
   that tears its map scene down and rebuilds it.
   **Phase 1 is complete.**
 - **Phase 2:** perks (Ironhide / Rapid Rounds / Fast Hands / Second Wind), the

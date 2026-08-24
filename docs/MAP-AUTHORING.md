@@ -236,11 +236,44 @@ etc.).
 
 ---
 
+## Make it a different shape, not a different colour
+
+The quickest way to build a map that feels like one you already have is to lay
+out rectangular yards in a row, put a door in the middle of each shared wall and
+change the ground kind. Resist it. Decide what the **layout** does to the fight
+first, then let the theme follow:
+
+| Shape | The fight it makes |
+|---|---|
+| Branching yards (*Blacksite*) | routes and choices; you can be flanked through a door |
+| A **ring** round a solid mass (*Coldstep*) | a lap you can kite forever; keep it bare or it stops being one |
+| A **tight chain** of small rooms (*Dustline*) | no kiting, barriers within a few strides, close-range weapons |
+| An **open plate** with no perimeter (*Tidewater*) | the edge is the boundary; barriers on every side at once |
+| A **hub with spokes** (*Deepcut*) | no "deeper" - only directions, and a back you have turned |
+
+Vary the same things the shape does: prop **density** (the ring of Coldstep is
+nearly empty, Dustline is wall-to-wall), **fog distance** (8 to 95 across the
+roster), `dirIntensity` (0.35 in a dark bunker, 1.9 in a quarry at golden hour),
+and how many barriers a region has and how close they are.
+
+**Give every map its own terrain system too** - that is half of what makes a
+place somewhere. Across the roster: settled hills, wind drifts, floors stepping
+down at each doorway, a water plane with hard-edged decking, and stepped benches
+around a bowl. See the table in the README.
+
 ## Regions & progression
 
 Region `0` is live at spawn. Each `door` unlocks one further region. The
 `barriers` and `wallBuys` of a region only activate once that region is live - so
 gate deeper areas, and their better guns, behind doors.
+
+> **The gating rule.** A region you unlock with a door must take its zombies
+> from barriers that open to the **outside of the compound**. A barrier gap
+> facing a region the player can already reach is simply a hole they can walk
+> through, and the door becomes decorative - the cage is a union of rectangles
+> and cannot fence off an interior room. If a room is surrounded by ground the
+> player already owns it cannot be a paid region: make it a solid mass (as the
+> hangar of Coldstep is) and hang the paid rooms off the perimeter instead.
 
 Give every region you unlock **at least one barrier and one wall-buy**: a region
 with no barrier is a safe room the horde cannot reach, and one with no wall-buy
@@ -252,6 +285,11 @@ gives the player no reason to spend the points. Blacksite runs four regions:
 | 1 | vault yard | `vault-door`, off spawn | 750 | KR-12, Breacher-12 |
 | 2 | substation | `substation-door`, off spawn | 1000 | Lancer-7 |
 | 3 | cold store | `coldstore-door`, off the vault | 1250 | Havoc-9 |
+
+The other four maps gate differently on purpose: Coldstep hangs two annexes off
+the perimeter, Dustline chains four rooms so each door is the only way on,
+Tidewater gates the shore end and the sea end of one pier, and Deepcut puts
+three doors on one room so nothing is ever simply "next".
 
 Adding a wing is five edits: carve a door gap in the wall you are hanging it off,
 add the perimeter walls of the wing (with gaps for its barriers), add the

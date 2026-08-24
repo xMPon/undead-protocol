@@ -47,14 +47,15 @@ survive.
 Phase 1 is **complete**.
 
 - **Main menu** with map select and a choice of starting view (3D or 2D).
-- **Five maps**, each with its own ground, weather, elevation and dressing:
-  | Map | Setting | Areas |
-  |---|---|---|
-  | **Blacksite** | research compound at dusk | 4 |
-  | **Coldstep** | arctic listening post under the drifts | 2 |
-  | **Dustline** | desert fuel depot, an L-shaped compound | 3 |
-  | **Tidewater** | container terminal on a dead harbour | 3 |
-  | **Deepcut** | open-cast quarry with the pit four units down | 3 |
+- **Five maps that are different shapes, not different colours.** Each one is
+  built around a distinct layout, a distinct terrain system and a distinct fight:
+  | Map | Shape | What it does to you | Terrain |
+  |---|---|---|---|
+  | **Blacksite** | branching compound of walled yards | four areas, two routes in | settled ground, sunken bay, raised docks |
+  | **Coldstep** | a **ring** around a sealed hangar | one endless lap; barriers on all four walls; twelve units of visibility | wind drifts, one high enough to climb |
+  | **Dustline** | a **tight chain** of small rooms | nowhere to kite, every barrier a few strides away, near-total darkness | each room 1.2 lower than the last |
+  | **Tidewater** | an **open pier** with no perimeter at all | the deck edge is the boundary; they come up on both flanks | a water plane with hard-edged decking above it |
+  | **Deepcut** | a **hub with three spokes** | you start at the bottom of the bowl and pick a direction | four working levels: −4, 0, +2, −1 |
 - **Point-gated rooms** — every map gates its deeper areas behind doors with a
   keypad and a price on the sign, and boarded barriers the zombies breach through.
 - **Two renderers over one simulation** — a Three.js third-person view and a
