@@ -1,5 +1,7 @@
 // Weapon registry. Original designations (no trademarked names). Tuned so the
-// starting sidearm is viable early but wall-buys clearly outclass it by design.
+// starting sidearm is viable early but wall-buys clearly outclass it by design,
+// and the two `boxOnly` guns clearly outclass the walls — those are the reason
+// to keep feeding The Cache instead of banking points.
 
 import type { WeaponDef } from "../sim/types";
 
@@ -79,6 +81,40 @@ export const WEAPONS: Record<string, WeaponDef> = {
     wallCost: 2000,
     ammoCost: 1000,
   },
+  // --- The Cache only. Never put these on a wall-buy: `boxOnly` is what makes
+  //     rolling the box worth 950 points a go, and tests enforce it. ---
+  arclight: {
+    id: "arclight",
+    name: "Arclight VX",
+    damage: 1400,
+    rpm: 90,
+    magSize: 6,
+    reserveMax: 30,
+    reloadTime: 3.4,
+    pellets: 1,
+    spread: 0.004,
+    auto: false,
+    range: 110,
+    wallCost: 0,
+    ammoCost: 4500,
+    boxOnly: true,
+  },
+  hailstorm: {
+    id: "hailstorm",
+    name: "Hailstorm",
+    damage: 78,
+    rpm: 260,
+    magSize: 20,
+    reserveMax: 160,
+    reloadTime: 3.0,
+    pellets: 6,
+    spread: 0.11,
+    auto: true,
+    range: 30,
+    wallCost: 0,
+    ammoCost: 3000,
+    boxOnly: true,
+  },
   breacher: {
     id: "breacher",
     name: "Breacher-12",
@@ -95,6 +131,13 @@ export const WEAPONS: Record<string, WeaponDef> = {
     ammoCost: 750,
   },
 };
+
+/**
+ * What The Cache can roll. Everything but the starting sidearm — landing on the
+ * M9 you already own would be a punishment, not a draw — including the two
+ * box-only guns.
+ */
+export const CACHE_POOL: string[] = ["pdw", "kr12", "breacher", "lancer", "havoc", "arclight", "hailstorm"];
 
 export function getWeapon(id: string): WeaponDef {
   const def = WEAPONS[id];

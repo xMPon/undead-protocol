@@ -66,6 +66,25 @@ export const TIDEWATER: MapDef = {
     { pos: { x: -36, y: 0 }, weaponId: "breacher", region: 2 },
   ],
 
+  // Nothing here has a back wall, so every machine is exposed on both sides —
+  // buying a perk on the pier means turning your back on one of the two edges.
+  perkMachines: [
+    { pos: { x: -9, y: 0 }, rot: 0, perkId: "secondwind", region: 0 },
+    { pos: { x: 14, y: 2 }, rot: 3.1416, perkId: "rapidrounds", region: 0 },
+    { pos: { x: 33, y: 7.5 }, rot: 3.1416, perkId: "ironhide", region: 1 },
+    { pos: { x: -29, y: 6.5 }, rot: 1.5708, perkId: "fasthands", region: 2 },
+  ],
+
+  cacheSites: [
+    { pos: { x: -2, y: 0 }, region: 0 },
+    { pos: { x: 28, y: 10 }, region: 1 },
+  ],
+
+  supplies: [
+    { pos: { x: 10, y: 2 }, region: 0 },
+    { pos: { x: 24, y: -4 }, region: 1 },
+  ],
+
   doors: [
     {
       id: "gate-door",

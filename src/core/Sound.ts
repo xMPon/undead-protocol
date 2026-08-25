@@ -128,4 +128,49 @@ export class Sound {
     this.blast(0.7, 0.7, 600);
     this.tone(140, 0.8, 0.35, "sawtooth", 40);
   }
+
+  // ---- phase 2 ----
+
+  /** A perk going down: three rising notes, the jingle without the jingle. */
+  perk(): void {
+    this.tone(392, 0.12, 0.22, "triangle");
+    window.setTimeout(() => this.tone(523, 0.12, 0.22, "triangle"), 110);
+    window.setTimeout(() => this.tone(659, 0.24, 0.24, "triangle"), 230);
+  }
+  /** The Cache lid coming up. */
+  cacheOpen(): void {
+    this.blast(0.4, 0.35, 900);
+    this.tone(180, 0.4, 0.2, "triangle", 420);
+  }
+  /** It has settled on something. */
+  cacheReveal(): void {
+    this.tone(660, 0.18, 0.22, "square");
+    window.setTimeout(() => this.tone(880, 0.3, 0.22, "square"), 130);
+  }
+  /** It has packed up and gone somewhere else. */
+  cacheMove(): void {
+    this.tone(520, 0.3, 0.2, "sawtooth", 180);
+    window.setTimeout(() => this.blast(0.35, 0.3, 700), 160);
+  }
+  throwGrenade(): void {
+    this.blast(0.22, 0.09, 3000, "highpass");
+  }
+  explosion(): void {
+    this.blast(1.0, 0.7, 700);
+    this.tone(70, 0.5, 0.5, "square", 30);
+  }
+  /** A plank being ripped off a barrier. */
+  board(): void {
+    this.blast(0.32, 0.14, 1600, "bandpass");
+    this.tone(220, 0.1, 0.16, "square", 120);
+  }
+  /** A plank going back on: two hammer blows. */
+  repair(): void {
+    this.blast(0.28, 0.06, 2600, "bandpass");
+    window.setTimeout(() => this.blast(0.22, 0.05, 2400, "bandpass"), 90);
+  }
+  /** Back on your feet. */
+  revive(): void {
+    this.tone(220, 0.5, 0.28, "triangle", 660);
+  }
 }

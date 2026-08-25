@@ -26,11 +26,20 @@ import {
   makePlayerRig,
   makeWeaponMesh,
   makeBloodBurst,
+  makePerkMachineMesh,
+  makeCacheMesh,
+  makeSupplyMesh,
+  makeGrenadeMesh,
+  makeBoardMesh,
+  makeExplosionMesh,
 } from "./procgen";
 import type { CharacterRig } from "./procgen";
 import { getWeapon } from "../data/weapons";
+import { getPerk } from "../data/perks";
 import { settings } from "../persist/Store";
 import { rayVsRect } from "../sim/collision";
+import { MAX_BOARDS } from "../sim/Barriers";
+import { GRENADE_RADIUS } from "../sim/Grenade";
 
 const WALL_H = 2.6;
 const LOOK_SENS = 0.0022;
@@ -49,6 +58,14 @@ const PLAYER_HIP_Y = 0.95;
 const BURST_LIFE = 0.75;
 /** Real point lights kept alive at once; the rest of the map's fixtures glow only. */
 const LIGHT_POOL = 14;
+/** Field of view at the hip, and down the sights. */
+const FOV_HIP = 70;
+const FOV_ADS = 46;
+/** Camera distance while aiming — in over the shoulder, not out behind them. */
+const CAM_DIST_ADS = 3.2;
+/** Grenades and blasts drawn at once; both are pools, never allocated per shot. */
+const GRENADE_POOL = 8;
+const BLAST_POOL = 4;
 
 const DEFAULT_THEME: ThemeDef = {
   ground: "concrete",
@@ -165,6 +182,19 @@ export class ThirdPerson3D implements Renderer {
   private playerMats: THREE.MeshStandardMaterial[] = [];
   private camDist = CAM_DIST;
 
+  /** One group of planks per barrier, indexed to match `MapDef.barriers`. */
+  private boardGroups: THREE.Object3D[][] = [];
+  private cacheMesh: THREE.Group | null = null;
+  private cacheLid: THREE.Object3D | null = null;
+  private cacheBeam: THREE.Object3D | null = null;
+  /** The gun hanging over an open Cache, and which one it is showing. */
+  private cacheWeapon: THREE.Group | null = null;
+  private cacheWeaponId = "";
+  private grenadeMeshes: THREE.Mesh[] = [];
+  private blastMeshes: THREE.Mesh[] = [];
+  private blastLight!: THREE.PointLight;
+  private fov = FOV_HIP;
+
   private time = 0;
   private emitters: Emitter[] = [];
   private lightPool: THREE.PointLight[] = [];
@@ -231,6 +261,12 @@ export class ThirdPerson3D implements Renderer {
       }
     });
     this.mapRoot.clear();
+    this.boardGroups = [];
+    this.cacheMesh = null;
+    this.cacheLid = null;
+    this.cacheBeam = null;
+    this.cacheWeapon = null;
+    this.cacheWeaponId = "";
     this.emitters = [];
     this.plumes = [];
     this.beacons = [];
@@ -260,6 +296,21 @@ export class ThirdPerson3D implements Renderer {
     this.scene.add(this.dust);
     this.stars = makeStarField(360, 280);
     this.scene.add(this.stars);
+
+    // Grenades and detonations outlive any one map, so they are pooled here
+    // rather than rebuilt with the scene.
+    for (let i = 0; i < GRENADE_POOL; i++) {
+      const mesh = makeGrenadeMesh();
+      this.grenadeMeshes.push(mesh);
+      this.scene.add(mesh);
+    }
+    for (let i = 0; i < BLAST_POOL; i++) {
+      const mesh = makeExplosionMesh();
+      this.blastMeshes.push(mesh);
+      this.scene.add(mesh);
+    }
+    this.blastLight = new THREE.PointLight(0xffa040, 0, 26, 2);
+    this.scene.add(this.blastLight);
   }
 
   private buildFromWorld(world: World): void {
@@ -370,6 +421,61 @@ export class ThirdPerson3D implements Renderer {
       label.position.set(wb.pos.x, gy + 2.1, wb.pos.y);
       this.mapRoot.add(label);
     }
+
+    // Perk machines: a lit cabinet each, and a real light, because a machine you
+    // cannot see in a dark room is a machine you will never walk into.
+    for (const m of world.def.perkMachines ?? []) {
+      const perk = getPerk(m.perkId);
+      const gy = height(m.pos.x, m.pos.y);
+      const rot = m.rot ?? 0;
+      const mesh = makePerkMachineMesh(perk.color, perk.name, perk.short, perk.cost);
+      mesh.position.set(m.pos.x, gy, m.pos.y);
+      mesh.rotation.y = -rot;
+      this.mapRoot.add(mesh);
+      this.addEmitter(
+        { x: m.pos.x + Math.cos(rot) * 0.7, y: gy + 1.4, z: m.pos.y + Math.sin(rot) * 0.7 },
+        perk.color,
+        7,
+        11,
+        "steady",
+        { glow: mesh.getObjectByName("glow") ?? null },
+      );
+    }
+
+    // Grenade resupply crates.
+    for (const crate of world.def.supplies ?? []) {
+      const mesh = makeSupplyMesh();
+      mesh.position.set(crate.pos.x, height(crate.pos.x, crate.pos.y), crate.pos.y);
+      mesh.rotation.y = -(crate.rot ?? 0);
+      this.mapRoot.add(mesh);
+    }
+
+    // One Cache mesh, moved to whichever site the box is on. Building one per
+    // site would light three empty crates and only ever use one of them.
+    if ((world.def.cacheSites ?? []).length > 0) {
+      const box = makeCacheMesh();
+      this.cacheMesh = box;
+      this.cacheLid = box.getObjectByName("lid") ?? null;
+      this.cacheBeam = box.getObjectByName("beam") ?? null;
+      this.mapRoot.add(box);
+    }
+
+    // Planks across every barrier, hidden one at a time as the horde tears in.
+    this.boardGroups = world.def.barriers.map((b) => {
+      const across = { x: -b.inward.y, y: b.inward.x }; // along the wall face
+      const gy = height(b.pos.x, b.pos.y);
+      const planks: THREE.Object3D[] = [];
+      for (let i = 0; i < MAX_BOARDS; i++) {
+        const plank = makeBoardMesh();
+        const t = (i - (MAX_BOARDS - 1) / 2) * 0.42;
+        plank.position.set(b.pos.x, gy + 1.5 + t, b.pos.y);
+        plank.rotation.y = -Math.atan2(across.y, across.x);
+        plank.rotation.z = (i % 2 === 0 ? 1 : -1) * 0.06; // nailed up in a hurry
+        this.mapRoot.add(plank);
+        planks.push(plank);
+      }
+      return planks;
+    });
 
     // Cover props, plus the diegetic light rig: every emissive kind gets a real
     // light, a haze cone, and (for fires) flame + smoke the render loop drives.
@@ -823,6 +929,11 @@ export class ThirdPerson3D implements Renderer {
       }
     }
 
+    this.syncBoards(world);
+    this.syncCache(world);
+    this.syncGrenades(world);
+    this.syncBlasts(world);
+
     const p = world.player;
     const groundP = world.terrain.heightAt(p.pos.x, p.pos.y);
     this.player.position.set(p.pos.x, p.footY, p.pos.y);
@@ -864,7 +975,17 @@ export class ThirdPerson3D implements Renderer {
     // any lateral camera offset would make centred targets shoot off to the side).
     // It pulls in when something solid is behind the player, so backing into a
     // wall no longer puts the geometry between the camera and the character.
-    const want = this.clearCameraDist(world, p.pos.x, p.pos.y, -fx, -fz);
+    // Sights: tighter FOV and the camera in close, so the crosshair means
+    // something. Both are eased — a snap would read as a stutter, not a zoom.
+    const wantFov = world.ads ? FOV_ADS : FOV_HIP;
+    if (Math.abs(this.fov - wantFov) > 0.05) {
+      this.fov += (wantFov - this.fov) * Math.min(1, dt * 12);
+      this.camera.fov = this.fov;
+      this.camera.updateProjectionMatrix();
+    }
+
+    const clear = this.clearCameraDist(world, p.pos.x, p.pos.y, -fx, -fz);
+    const want = world.ads ? Math.min(clear, CAM_DIST_ADS) : clear;
     // Ease outward, snap inward: popping out into a wall looks far worse than a
     // quick recovery once the player steps clear of it.
     this.camDist = want < this.camDist ? want : Math.min(want, this.camDist + dt * 9);
@@ -885,6 +1006,101 @@ export class ThirdPerson3D implements Renderer {
     // Light the player's surroundings, not the camera's — the camera trails them.
     this.assignLights(p.pos.x, p.footY + 1.2, p.pos.y);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /** Hide a barrier's planks as they come off; show them again when rebuilt. */
+  private syncBoards(world: World): void {
+    for (let i = 0; i < this.boardGroups.length; i++) {
+      const left = world.map.boards.at(i);
+      const planks = this.boardGroups[i];
+      for (let k = 0; k < planks.length; k++) planks[k].visible = k < left;
+    }
+  }
+
+  /**
+   * The Cache: parked on whichever site it currently occupies, lid rising while
+   * it is open, and the gun it has landed on turning in the beam above it.
+   */
+  private syncCache(world: World): void {
+    const box = this.cacheMesh;
+    if (!box) return;
+    const site = world.cacheSite();
+    if (!site) {
+      box.visible = false;
+      return;
+    }
+    box.visible = true;
+    const gy = world.terrain.heightAt(site.pos.x, site.pos.y);
+    box.position.set(site.pos.x, gy, site.pos.y);
+    box.rotation.y = -(site.rot ?? 0);
+
+    const open = world.cache.state === "spinning" || world.cache.state === "offering";
+    if (this.cacheLid) {
+      const want = open ? -1.5 : 0;
+      this.cacheLid.rotation.x += (want - this.cacheLid.rotation.x) * Math.min(1, 0.12);
+    }
+    if (this.cacheBeam) this.cacheBeam.visible = open;
+
+    // The displayed weapon changes every frame or two while it cycles, so the
+    // old model is disposed rather than left to pile up in the scene graph.
+    if (!open) {
+      if (this.cacheWeapon) this.cacheWeapon.visible = false;
+      return;
+    }
+    if (world.cache.display !== this.cacheWeaponId) {
+      this.cacheWeaponId = world.cache.display;
+      if (this.cacheWeapon) {
+        box.remove(this.cacheWeapon);
+        disposeTree(this.cacheWeapon);
+      }
+      this.cacheWeapon = makeWeaponMesh(getWeapon(this.cacheWeaponId));
+      box.add(this.cacheWeapon);
+    }
+    if (this.cacheWeapon) {
+      this.cacheWeapon.visible = true;
+      this.cacheWeapon.scale.setScalar(2.2);
+      this.cacheWeapon.position.set(0, 1.55 + Math.sin(this.time * 2.4) * 0.08, 0);
+      this.cacheWeapon.rotation.set(0, this.time * 1.6, 0);
+    }
+  }
+
+  private syncGrenades(world: World): void {
+    for (let i = 0; i < this.grenadeMeshes.length; i++) {
+      const g = world.grenades[i];
+      const mesh = this.grenadeMeshes[i];
+      if (!g) {
+        mesh.visible = false;
+        continue;
+      }
+      mesh.visible = true;
+      mesh.position.set(g.pos.x, g.footY + 0.16, g.pos.y);
+      mesh.rotation.set(g.spin, g.spin * 0.7, 0);
+    }
+  }
+
+  /** Blasts expand and fade over their ttl; the newest one drives the flash light. */
+  private syncBlasts(world: World): void {
+    let lit = false;
+    for (let i = 0; i < this.blastMeshes.length; i++) {
+      const b = world.blasts[i];
+      const mesh = this.blastMeshes[i];
+      const mat = mesh.material as THREE.MeshBasicMaterial;
+      if (!b) {
+        mesh.visible = false;
+        continue;
+      }
+      const k = Math.max(0, Math.min(1, b.ttl / 0.5)); // 1 at detonation → 0 as it dies
+      mesh.visible = true;
+      mesh.position.set(b.pos.x, b.footY + 0.5, b.pos.y);
+      mesh.scale.setScalar(GRENADE_RADIUS * (1.1 - k * 0.75));
+      mat.opacity = k * 0.75;
+      if (!lit) {
+        lit = true;
+        this.blastLight.position.set(b.pos.x, b.footY + 1, b.pos.y);
+        this.blastLight.intensity = k * 40;
+      }
+    }
+    if (!lit) this.blastLight.intensity = 0;
   }
 
   buildIntent(_world: World, input: Input, dt: number): Intent {
@@ -920,6 +1136,8 @@ export class ThirdPerson3D implements Renderer {
     intent.interact = input.isDown("KeyF");
     intent.sprint = input.isDown("ShiftLeft") || input.isDown("ShiftRight");
     intent.jump = input.isDown("Space");
+    intent.ads = input.right;
+    intent.grenade = input.isDown("KeyG");
     if (input.wasPressed("Digit1")) intent.switchTo = 0;
     else if (input.wasPressed("Digit2")) intent.switchTo = 1;
     return intent;
@@ -930,6 +1148,7 @@ export class ThirdPerson3D implements Renderer {
   }
 
   resize(w: number, h: number): void {
+    this.camera.fov = this.fov;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h, false);
@@ -944,4 +1163,15 @@ export class ThirdPerson3D implements Renderer {
   dispose(): void {
     this.renderer.dispose();
   }
+}
+
+/** Free the geometry and materials under an object before dropping it. */
+function disposeTree(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    if (o instanceof THREE.Mesh) {
+      o.geometry?.dispose();
+      const mat = o.material as THREE.Material | THREE.Material[];
+      for (const m of Array.isArray(mat) ? mat : [mat]) m?.dispose();
+    }
+  });
 }

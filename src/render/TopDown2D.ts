@@ -8,7 +8,12 @@ import type { Input } from "../core/Input";
 import type { Intent, GroundKind, PropKind } from "../sim/types";
 import { emptyIntent } from "../sim/types";
 import { PROP_SPECS, isSolidProp } from "../sim/props";
+import { PERK_MACHINE, CACHE_BOX, SUPPLY_CRATE } from "../sim/fixtures";
+import { MAX_BOARDS } from "../sim/Barriers";
+import { GRENADE_RADIUS } from "../sim/Grenade";
 import { getWeapon } from "../data/weapons";
+import { getPerk } from "../data/perks";
+import { CACHE_COST } from "../sim/Cache";
 
 const SCALE = 18; // pixels per world unit
 
@@ -76,9 +81,12 @@ export class TopDown2D implements Renderer {
     this.drawProps(world);
     this.drawBarriers(world);
     this.drawWallBuys(world);
+    this.drawFixtures(world);
     this.drawTracers(world);
+    this.drawGrenades(world);
     this.drawZombies(world);
     this.drawPlayer(world);
+    this.drawBlasts(world);
 
     // Screen-space labels for wall-buys.
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -297,15 +305,101 @@ export class TopDown2D implements Renderer {
     }
   }
 
+  /** Barriers, drawn as the planks that are actually still on them. */
   private drawBarriers(world: World): void {
     const ctx = this.ctx;
-    for (const barrier of world.map.activeBarriers()) {
+    world.def.barriers.forEach((barrier, index) => {
+      if (!world.map.isRegionActive(barrier.region)) return;
+      const left = world.map.boards.at(index);
       ctx.save();
       ctx.translate(barrier.pos.x, barrier.pos.y);
       ctx.rotate(Math.atan2(barrier.inward.y, barrier.inward.x));
-      ctx.fillStyle = "#5a4a33";
-      for (let i = -1; i <= 1; i++) ctx.fillRect(-0.15, i * 0.6 - 0.2, 0.3, 0.4);
+      for (let i = 0; i < MAX_BOARDS; i++) {
+        const t = (i - (MAX_BOARDS - 1) / 2) * 0.44;
+        // Torn planks stay drawn, faintly: the gap is the information.
+        ctx.fillStyle = i < left ? "#8a6a3a" : "rgba(90,74,51,0.18)";
+        ctx.fillRect(-0.16, t - 0.16, 0.32, 0.32);
+      }
       ctx.restore();
+    });
+  }
+
+  /** Perk machines, The Cache and supply crates, in their real footprints. */
+  private drawFixtures(world: World): void {
+    const ctx = this.ctx;
+    ctx.lineWidth = 0.06;
+
+    for (const m of world.def.perkMachines ?? []) {
+      const live = world.map.isRegionActive(m.region);
+      const perk = getPerk(m.perkId);
+      const held = world.player.hasPerk(m.perkId);
+      ctx.save();
+      ctx.translate(m.pos.x, m.pos.y);
+      ctx.rotate(m.rot ?? 0);
+      ctx.globalAlpha = live ? 1 : 0.35;
+      ctx.fillStyle = held ? "#3a4a3a" : hex(perk.color);
+      ctx.strokeStyle = "rgba(0,0,0,0.55)";
+      ctx.fillRect(-PERK_MACHINE.hx, -PERK_MACHINE.hy, PERK_MACHINE.hx * 2, PERK_MACHINE.hy * 2);
+      ctx.strokeRect(-PERK_MACHINE.hx, -PERK_MACHINE.hy, PERK_MACHINE.hx * 2, PERK_MACHINE.hy * 2);
+      // A tick on the face it serves from, so you can see which way to approach.
+      ctx.fillStyle = "rgba(255,255,255,0.75)";
+      ctx.fillRect(PERK_MACHINE.hx - 0.12, -PERK_MACHINE.hy * 0.6, 0.12, PERK_MACHINE.hy * 1.2);
+      ctx.restore();
+    }
+
+    for (const crate of world.def.supplies ?? []) {
+      if (!world.map.isRegionActive(crate.region)) continue;
+      ctx.save();
+      ctx.translate(crate.pos.x, crate.pos.y);
+      ctx.rotate(crate.rot ?? 0);
+      ctx.fillStyle = "#4a5335";
+      ctx.strokeStyle = "#d8b32a";
+      ctx.fillRect(-SUPPLY_CRATE.hx, -SUPPLY_CRATE.hy, SUPPLY_CRATE.hx * 2, SUPPLY_CRATE.hy * 2);
+      ctx.strokeRect(-SUPPLY_CRATE.hx, -SUPPLY_CRATE.hy, SUPPLY_CRATE.hx * 2, SUPPLY_CRATE.hy * 2);
+      ctx.restore();
+    }
+
+    const site = world.cacheSite();
+    if (site && world.map.isRegionActive(site.region)) {
+      const open = world.cache.state === "spinning" || world.cache.state === "offering";
+      ctx.save();
+      ctx.translate(site.pos.x, site.pos.y);
+      ctx.rotate(site.rot ?? 0);
+      if (open) this.glow(0, 0, 4, 0xffd166, 0.5);
+      ctx.fillStyle = "#6b4f2a";
+      ctx.strokeStyle = open ? "#ffd166" : "rgba(0,0,0,0.55)";
+      ctx.lineWidth = open ? 0.12 : 0.06;
+      ctx.fillRect(-CACHE_BOX.hx, -CACHE_BOX.hy, CACHE_BOX.hx * 2, CACHE_BOX.hy * 2);
+      ctx.strokeRect(-CACHE_BOX.hx, -CACHE_BOX.hy, CACHE_BOX.hx * 2, CACHE_BOX.hy * 2);
+      ctx.restore();
+    }
+  }
+
+  private drawGrenades(world: World): void {
+    const ctx = this.ctx;
+    for (const g of world.grenades) {
+      const oy = this.liftOf(world, g.pos.x, g.pos.y, g.footY, 0.3);
+      ctx.fillStyle = "#c8d24a";
+      ctx.beginPath();
+      ctx.arc(g.pos.x, g.pos.y + oy, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /** Detonations, as a ring that expands over the blast's short life. */
+  private drawBlasts(world: World): void {
+    const ctx = this.ctx;
+    for (const b of world.blasts) {
+      const k = Math.max(0, Math.min(1, b.ttl / 0.5));
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      this.glow(b.pos.x, b.pos.y, GRENADE_RADIUS * (1.1 - k * 0.6), 0xffb340, k * 0.7);
+      ctx.restore();
+      ctx.strokeStyle = `rgba(255,220,150,${k})`;
+      ctx.lineWidth = 0.14;
+      ctx.beginPath();
+      ctx.arc(b.pos.x, b.pos.y, GRENADE_RADIUS * (1 - k * 0.55), 0, Math.PI * 2);
+      ctx.stroke();
     }
   }
 
@@ -331,6 +425,25 @@ export class TopDown2D implements Renderer {
       ctx.fillText(def.name, sx, sy - 6);
       ctx.fillStyle = "#ffb43a";
       ctx.fillText(`$${def.wallCost || def.ammoCost}`, sx, sy + 8);
+    }
+
+    for (const m of world.map.activePerkMachines()) {
+      const perk = getPerk(m.perkId);
+      const [sx, sy] = this.toScreen(m.pos.x, m.pos.y - 1);
+      ctx.fillStyle = "#efe7d8";
+      ctx.fillText(perk.name, sx, sy - 6);
+      ctx.fillStyle = world.player.hasPerk(perk.id) ? "#7bd651" : "#ffb43a";
+      ctx.fillText(world.player.hasPerk(perk.id) ? "HELD" : `$${perk.cost}`, sx, sy + 8);
+    }
+
+    const site = world.cacheSite();
+    if (site && world.map.isRegionActive(site.region)) {
+      const [sx, sy] = this.toScreen(site.pos.x, site.pos.y - 1);
+      ctx.fillStyle = "#efe7d8";
+      ctx.fillText("The Cache", sx, sy - 6);
+      ctx.fillStyle = "#ffd166";
+      const showing = world.cache.state === "idle" ? `$${CACHE_COST}` : getWeapon(world.cache.display).name;
+      ctx.fillText(showing, sx, sy + 8);
     }
   }
 
@@ -432,6 +545,8 @@ export class TopDown2D implements Renderer {
     intent.interact = input.isDown("KeyF");
     intent.sprint = input.isDown("ShiftLeft") || input.isDown("ShiftRight");
     intent.jump = input.isDown("Space");
+    intent.ads = input.right;
+    intent.grenade = input.isDown("KeyG");
     if (input.wasPressed("Digit1")) intent.switchTo = 0;
     else if (input.wasPressed("Digit2")) intent.switchTo = 1;
     return intent;

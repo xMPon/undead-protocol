@@ -18,12 +18,27 @@ export interface Intent {
   interact: boolean;
   sprint: boolean;
   jump: boolean;
+  /** Aiming down sights: tighter spread, slower walk, closer camera. */
+  ads: boolean;
+  /** Throw a grenade this frame (edge-triggered by the World). */
+  grenade: boolean;
   /** Weapon slot the player wants to switch to, or null. */
   switchTo: number | null;
 }
 
 export function emptyIntent(): Intent {
-  return { move: { x: 0, y: 0 }, aim: 0, firing: false, reload: false, interact: false, sprint: false, jump: false, switchTo: null };
+  return {
+    move: { x: 0, y: 0 },
+    aim: 0,
+    firing: false,
+    reload: false,
+    interact: false,
+    sprint: false,
+    jump: false,
+    ads: false,
+    grenade: false,
+    switchTo: null,
+  };
 }
 
 // ---- Weapons ----
@@ -51,6 +66,8 @@ export interface WeaponDef {
   wallCost: number;
   /** Cost to refill ammo when already owned. */
   ammoCost: number;
+  /** Only ever handed out by The Cache — never valid on a wall-buy. */
+  boxOnly?: boolean;
 }
 
 /** A weapon the player actually carries: def id + live ammo counters. */
@@ -106,6 +123,32 @@ export interface WallBuyDef {
   region: number;
 }
 
+/**
+ * A perk machine. `perkId` keys into `data/perks.ts`; the cost lives with the
+ * perk so the same machine costs the same on every map.
+ */
+export interface PerkMachineDef {
+  pos: Vec2;
+  perkId: string;
+  region: number;
+  /** Facing, in radians. The cabinet's front is its local +x. */
+  rot?: number;
+}
+
+/** One place The Cache can sit. A map with several lets the box relocate. */
+export interface CacheSiteDef {
+  pos: Vec2;
+  region: number;
+  rot?: number;
+}
+
+/** A grenade resupply crate. */
+export interface SupplyDef {
+  pos: Vec2;
+  region: number;
+  rot?: number;
+}
+
 export interface DoorDef {
   id: string;
   /** Prompt anchor / interaction point. */
@@ -130,6 +173,12 @@ export interface MapDef {
   walls: WallRect[];
   barriers: BarrierDef[];
   wallBuys: WallBuyDef[];
+  /** Perk machines, at most one per perk id. Omit for a map with no perks. */
+  perkMachines?: PerkMachineDef[];
+  /** Where The Cache can appear. The first live site is where it starts. */
+  cacheSites?: CacheSiteDef[];
+  /** Grenade resupply crates. */
+  supplies?: SupplyDef[];
   doors: DoorDef[];
   playerSpawn: Vec2;
   /** Regions live from the start (region 0 = spawn room). */
@@ -290,4 +339,14 @@ export interface Tracer {
   hit: boolean;
 }
 
-export type ZombieState = "rising" | "chasing" | "attacking" | "dead";
+export type ZombieState = "breaching" | "rising" | "chasing" | "attacking" | "dead";
+
+/** An explosion the renderers draw for a moment after the sim resolved it. */
+export interface Blast {
+  pos: Vec2;
+  /** Absolute height of the detonation. */
+  footY: number;
+  radius: number;
+  /** Seconds remaining before it fades. */
+  ttl: number;
+}

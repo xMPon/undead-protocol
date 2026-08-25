@@ -41,6 +41,9 @@ export const MYMAP: MapDef = {
   walls:    [ /* WallRect[]  — perimeter + interior cover */ ],
   barriers: [ /* BarrierDef[] — where zombies breach in */ ],
   wallBuys: [ /* WallBuyDef[] — buyable guns on the wall */ ],
+  perkMachines: [ /* PerkMachineDef[] — perk cabinets (solid!) */ ],
+  cacheSites:   [ /* CacheSiteDef[]   — where The Cache can sit */ ],
+  supplies:     [ /* SupplyDef[]      — grenade resupply crates */ ],
   doors:    [ /* DoorDef[]   — point-gated region unlocks */ ],
   terrain:  { /* TerrainDef — elevation */ },
   theme:    { /* ThemeDef   — fog / lights / sky / ground */ },
@@ -116,6 +119,51 @@ spawn. Give each active region at least one.
 [`data/weapons.ts`](../src/data/weapons.ts). First purchase grants the gun (cost
 `wallCost`); repeat purchases refill ammo (cost `ammoCost`). Placed against a
 wall, reachable, in an active region.
+
+### `perkMachines` — `PerkMachineDef[]` (optional)
+
+```ts
+{ pos: { x: -24, y: 5 }, rot: 0, perkId: "secondwind", region: 0 }
+```
+
+A perk cabinet. `perkId` keys into [`data/perks.ts`](../src/data/perks.ts) — the
+cost, name, chip and livery colour all come from there, so a machine never
+carries a price of its own. `rot` points its serving face (local **+x**, the same
+convention props use), so `rot: 0` faces east and `rot: 3.1416` faces west.
+
+**A machine is solid.** It goes into `map.walls` *and* `World.obstacles`, which
+means it blocks bullets, the player, and the flow field. Put it against a wall or
+in a corner, never in a doorway, a barrier gap, or the middle of a lap route.
+Its footprint is `PERK_MACHINE` in [`sim/fixtures.ts`](../src/sim/fixtures.ts).
+
+At most one machine per perk id per map. Spread them across regions: a perk
+behind a door is a reason to buy the door.
+
+### `cacheSites` — `CacheSiteDef[]` (optional)
+
+```ts
+{ pos: { x: 0, y: 10 }, region: 0 }
+```
+
+Places The Cache can set up. Only **one** box exists; it starts on the first site
+whose region is live and moves to another live site after 4–7 draws, so give a
+map two or three, in different regions. A single site is legal — the box then
+restocks in place instead of moving.
+
+The crate is **not** solid (it relocates mid-round, and the obstacle list only
+rebuilds when a door opens), so it will never wall anything off — but keep it
+clear of breach routes anyway, or the player will be fighting the horde for the
+space they have to stand in to use it.
+
+### `supplies` — `SupplyDef[]` (optional)
+
+```ts
+{ pos: { x: 22, y: -12 }, region: 0 }
+```
+
+A grenade resupply crate: a flat 250 points to fill the pouch, wherever it is.
+Non-solid, like The Cache. One or two per map; put them where a player who has
+just spent everything on a door will walk past.
 
 ### `doors` — `DoorDef[]`
 `{ id, pos, name?, cost, blocks, opensRegion }`. Interacting (F) near `pos` with
@@ -312,7 +360,10 @@ it.
 - [ ] Every active region has ≥1 barrier with a correct **unit** `inward`.
 - [ ] Barrier/door gaps are wide enough (~3+ u) for zombies to path through.
 - [ ] Interior cover doesn't seal a region or block a barrier's path to the player.
-- [ ] Every `wallBuy.weaponId` exists in `data/weapons.ts`.
+- [ ] Every `wallBuy.weaponId` exists in `data/weapons.ts` and is **not** `boxOnly`.
+- [ ] Perk machines: one per perk id, spread across regions, against a wall — never in a doorway, barrier gap or lap route.
+- [ ] At least one `cacheSite` is in a `startRegions` region, so the box exists from round 1.
+- [ ] No machine, cache site or supply crate sits on a barrier's breach route.
 - [ ] Each `door.blocks` exactly fills its wall gap; `opensRegion` is correct.
 - [ ] `flatZones` level any building floors; pits/docks read clearly.
 - [ ] Props avoid the spawn point and barrier gaps.

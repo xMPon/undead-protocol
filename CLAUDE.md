@@ -33,9 +33,14 @@ changes nothing about game state.
 | `core/Loop.ts` | RAF loop with clamped dt |
 | `core/Input.ts` | keyboard state, one-frame edges, mouse pos/delta, pointer lock + `onLockChange` |
 | `core/Sound.ts` | procedural WebAudio SFX (guns, groans, hits, round sting) — no files |
-| `sim/types.ts` | `Intent`, weapon/map/terrain/theme/prop/light/decal data shapes, `Obstacle`, `Tracer` |
-| `sim/World.ts` | **the integrator** — owns all state incl. terrain, obstacles, jump physics; `update(dt, intent)` |
-| `sim/Player.ts` | transform, `footY`/jump, survival (health/i-frames/regen), points, carried weapons |
+| `sim/types.ts` | `Intent`, weapon/map/terrain/theme/prop/light/decal/fixture data shapes, `Obstacle`, `Tracer`, `Blast` |
+| `sim/World.ts` | **the integrator** — owns all state incl. terrain, obstacles, jump physics, grenades in flight, the Cache, and the interaction focus; `update(dt, intent)` |
+| `sim/Player.ts` | transform, `footY`/jump, survival (health/i-frames/regen), points, perks held, grenades, the downed state, carried weapons |
+| `sim/Perks.ts` | **every perk effect**, as pure functions over the held set (health, fire rate, reload, self-revive) |
+| `sim/Cache.ts` | "The Cache" mystery box: a seedable idle→spinning→offering→closing machine that draws from a weapon pool and relocates |
+| `sim/Grenade.ts` | grenade entity + blast falloff, throw/fuse/resupply constants |
+| `sim/Barriers.ts` | `Boards` — the plank count per barrier, and the tear/repair rules |
+| `sim/fixtures.ts` | footprints for perk machines, The Cache and supply crates (what `props.ts` is for scenery) |
 | `sim/Zombie.ts` | undead entity data + `footY`/jump + stuck-timer; damage/death; steering runs in World |
 | `sim/Terrain.ts` | procedural heightfield `heightAt(x,y)` (pure); elevation is visual + entity-Y only |
 | `sim/props.ts` | `PROP_SPECS` — footprint/height/colour/`emits`/`decor`/`round`/`parts` per prop kind + `isSolidProp` and `propColliders` (the one source of a prop's solids, for collision *and* the flow field) |
@@ -43,20 +48,20 @@ changes nothing about game state.
 | `sim/Spawner.ts` | spawn-cadence gate + interval (pure) |
 | `sim/Weapons.ts` | fire/reload/ammo mechanics on a `WeaponInstance` (pure) |
 | `sim/Economy.ts` | points award/spend rules (pure) |
-| `sim/Map.ts` | runtime map: door/region state + current collision walls (incl. solid props) |
+| `sim/Map.ts` | runtime map: door/region state, barrier plank counts, live perk machines / cache sites / supplies, and current collision walls (incl. solid props and perk cabinets) |
 | `sim/collision.ts` | circle vs rect/**oriented box**/disc + **height-aware obstacle** resolution, `supportHeight`, ray casts, `clampToZones` player cage (pure) |
 | `sim/pathing.ts` | BFS flow-field toward the player; zombies sample its gradient |
 | `render/Renderer.ts` | the interface both views implement (`render`/`buildIntent`/…) |
-| `render/ThirdPerson3D.ts` | Three.js view: displaced terrain, sun **shadows** + ACES tone mapping, entity jump lift, the diegetic light rig (a fixed 14-light pool handed to the nearest fixtures + haze cones + flicker) and atmosphere (fire, smoke, dust, stars) |
-| `render/TopDown2D.ts` | Canvas 2D top-down: terrain hillshade, prop footprints (dressing drawn faint), light glows, jump shadows |
+| `render/ThirdPerson3D.ts` | Three.js view: displaced terrain, sun **shadows** + ACES tone mapping, entity jump lift, the diegetic light rig (a fixed 14-light pool handed to the nearest fixtures + haze cones + flicker), atmosphere (fire, smoke, dust, stars), the Phase 2 fixtures (perk cabinets, The Cache with its lid/beam/turning gun, barrier planks, pooled grenades and blasts) and the ADS FOV/camera pull |
+| `render/TopDown2D.ts` | Canvas 2D top-down: terrain hillshade, prop footprints (dressing drawn faint), light glows, jump shadows, machine/box/crate footprints, per-barrier plank counts, grenades and blast rings |
 | `render/ViewManager.ts` | holds both renderers, keeps one visible, toggles them |
 | `render/procgen.ts` | procedural PBR-ish materials (albedo + **normal maps**), terrain mesh, sky dome, prop meshes, jointed character rigs, weapon models, decal textures — no asset files |
-| `data/weapons.ts` | `WEAPONS` registry (original, non-trademarked designations) |
+| `data/weapons.ts` | `WEAPONS` registry (original, non-trademarked designations) + `CACHE_POOL`; `boxOnly` guns are Cache-only and never valid on a wall |
 | `data/maps.ts` | the map roster (`MAPS`, `getMap`) the select menu and saved settings read. Draft status per map: [`docs/MAP-AUDIT.md`](docs/MAP-AUDIT.md) |
 | `data/map_blacksite.ts` | the reference map "Blacksite" — walls, barriers, buys, doors, terrain, theme, props, lights, decals, `playBounds` |
 | `data/map_coldstep.ts` … `map_deepcut.ts` | the other four Phase 1 maps — a ring, a tight chain of rooms, an open pier, a hub-and-spokes pit. Different **shapes**, not palettes |
-| `data/perks.ts` | perk registry — **reserved for Phase 2**, not wired yet |
-| `ui/Hud.ts` | round/points/health/ammo/prompt/banner + damage vignette (DOM) |
+| `data/perks.ts` | perk registry — id, name, HUD chip, cost, machine colour. The *effects* live in `sim/Perks.ts` |
+| `ui/Hud.ts` | round/points/health/ammo/frags/perk chips/prompt/banner/notice + damage vignette and the downed overlay (DOM) |
 | `ui/Menu.ts` | main menu with map select (`Menu`) + pause overlay and settings (`PauseMenu`) |
 | `ui/GameOver.ts` | death screen: round reached, best, restart/menu |
 | `persist/Store.ts` | localStorage best-round high score + persisted control `settings` (look sensitivity, turn speed, invert Y) |
@@ -102,6 +107,17 @@ changes nothing about game state.
   phase advances by **distance travelled, not time**, so feet never slide, and it
   is clamped per frame because a pooled slot can change owner. The sim knows
   nothing about any of it.
+- **A perk's effect lives in `sim/Perks.ts` and nowhere else.** `data/perks.ts`
+  is the shop front (name, cost, colour, chip); the moment a second file starts
+  asking `perks.has("ironhide")` directly, two places decide what a perk does.
+- **The prompt and the keypress read the same focus.** `World.updateFocus`
+  picks one thing per frame and `handleInteract` acts on exactly that, so the
+  HUD can never offer something the key does not do. Add an interaction by
+  extending the `Focus` union — not by adding another nearest-thing lookup.
+- **A fixture's footprint comes from `sim/fixtures.ts`**, the same rule props
+  follow. Perk cabinets are solid (they are in `map.walls` *and* `obstacles`);
+  The Cache is deliberately not, because it relocates mid-round and the obstacle
+  list only rebuilds when a door opens.
 - **Elevation is cosmetic to gameplay.** `Terrain.heightAt` and jump `footY`
   drive where things are *drawn* and height-aware obstacle mounting, but
   movement/collision resolve in 2D — so the sim stays deterministic and testable.
@@ -113,7 +129,10 @@ Every map is a single `MapDef` (`src/sim/types.ts`) exported from a file in
 it in the menu, and what puts it through every check in `tests/map.test.ts`. **`data/map_blacksite.ts` is the reference/blueprint** — copy its
 shape. The full field-by-field guide, coordinate conventions, prop/terrain/theme
 /light options, region+door progression, and a new-map checklist live in
-[`docs/MAP-AUTHORING.md`](docs/MAP-AUTHORING.md). To add a prop kind: extend
+[`docs/MAP-AUTHORING.md`](docs/MAP-AUTHORING.md). A map also places the Phase 2
+fixtures — `perkMachines`, `cacheSites` and `supplies` — and `tests/map.test.ts`
+checks each one is in bounds, in the cage, clear of walls, props and breach
+routes, and pathable. To add a prop kind: extend
 `PropKind` (`types.ts`), `PROP_SPECS` (`sim/props.ts`, including `round`/`parts`
 if it is not a plain box), and `makePropMesh` (`render/procgen.ts`) — plus
 `addPropFx` (`render/ThirdPerson3D.ts`) if it emits light or animates. The 2D
@@ -163,17 +182,27 @@ that convention.
   Deepcut (a hub with three spokes at four different heights) — plus the
   map-select menu, `World.loadMap` for swapping maps in place, and a renderer
   that tears its map scene down and rebuilds it.
-  **Not finished: the four new maps are drafts.** They pass all 31 automated
+  **Not finished: the four new maps are drafts.** They pass all 19 automated
   data-integrity checks, but none has been viewed in 3D or played, and none has
   had a balance pass. [`docs/MAP-AUDIT.md`](docs/MAP-AUDIT.md) tracks what is
   verified, the specific risks (props and walls on the much steeper terrain,
   box-vs-box overlap only being bounding-box tested, the whiteout, the darkness,
   whether the water reads as water) and what closes each one out.
-- **Phase 2:** perks (Ironhide / Rapid Rounds / Fast Hands / Second Wind), the
-  Mystery Box ("The Cache"), grenades, ADS, more map regions, board-up barriers.
+- **Phase 2 — built, not yet played:** perks (Ironhide / Rapid Rounds / Fast
+  Hands / Second Wind) on machines in every region of every map, each effect
+  defined once in `sim/Perks.ts`; Second Wind puts the player *down* for 4.5s
+  and revives them on half health rather than ending the run. The Cache — 950 a
+  draw, a spin, a grab window, two box-only guns (Arclight VX, Hailstorm), and
+  relocation to another live site after 4–7 draws. Grenades: fused, arcing,
+  bouncing, line-of-sight so frag does not pass through walls, self-damage, and
+  250-point resupply crates. ADS on right mouse: spread ×0.3, walk ×0.55, FOV
+  70→46 with the camera pulled in. Board-up barriers: four planks each, zombies
+  tear one at a time before they can climb in, the player rebuilds them at
+  +10 a plank. **Not finished: none of it has been played.** The simulation is
+  covered by 202 tests; the meshes, the HUD and the feel are unverified — see
+  the Phase 2 shakedown item in `docs/ROADMAP_ITEMS.json`.
 - **Phase 3:** weapon-upgrade station ("The Forge"), dog/Feral-Hound rounds,
-  power-ups (Resupply / Executioner / Purge / Bonus / Fortify), power switch,
-  second map.
+  power-ups (Resupply / Executioner / Purge / Bonus / Fortify), power switch.
 - **Phase 4:** boss rounds, traps, mini-quests.
 - **Phase 5:** easter eggs (musical + multi-step main quest), difficulty/
   settings, leaderboards.

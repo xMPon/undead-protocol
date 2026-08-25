@@ -38,6 +38,12 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          # Create the Pages site if it does not exist yet. Without this the job
+          # fails with a bare 404 on any repo (or fork) where Pages was never
+          # switched on by hand, which is exactly how this workflow spent its
+          # first week failing.
+          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

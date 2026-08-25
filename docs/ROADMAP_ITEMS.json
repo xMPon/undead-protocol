@@ -59,15 +59,22 @@
     "id": "phase-2-perks-and-cache",
     "title": "Add perks and The Cache mystery box",
     "phase": "Phase 2",
-    "status": "todo",
-    "details": "Implement Ironhide, Rapid Rounds, Fast Hands, Second Wind, and the Mystery Box feature (The Cache)."
+    "status": "in_progress",
+    "details": "Ironhide, Rapid Rounds, Fast Hands and Second Wind are implemented as pure effects in sim/Perks.ts, bought from machines placed in every region of all five maps; Second Wind downs the player for 4.5 seconds and revives them on half health instead of ending the run. The Cache is a seedable state machine (idle/spinning/offering/closing) costing 950 a draw, with two box-only weapons (Arclight VX, Hailstorm) and relocation to another live site after 4-7 draws. NOT FINISHED: neither system has been played or seen in 3D. Closes with the Phase 2 shakedown."
   },
   {
     "id": "phase-2-grenades-ads-and-regions",
     "title": "Add grenades, ADS, and map progression extensions",
     "phase": "Phase 2",
+    "status": "in_progress",
+    "details": "Grenades (fused, arcing, bouncing, distance falloff, line-of-sight so frag does not cross walls, self-damage, and 250-point resupply crates), aim-down-sights on right mouse (spread x0.3, walk x0.55, FOV 70->46 with the camera pulled in), and board-up barriers (four planks each; zombies tear one at a time before they can climb in, the player rebuilds at +10 a plank). Map progression was already four regions per map in Phase 1, so this item now covers only the mechanics. NOT FINISHED: unplayed, same as the perks item."
+  },
+  {
+    "id": "phase-2-shakedown",
+    "title": "Play-test the Phase 2 systems",
+    "phase": "Phase 2",
     "status": "todo",
-    "details": "Implement grenades, aim-down-sights, more map regions, and board-up barriers."
+    "details": "Play perks, The Cache, grenades, ADS and board-up barriers, none of which has been seen in 3D. Covers: whether perk cabinets read as usable and are reachable on the steeper maps; whether The Cache's lid, beam and turning weapon land, and whether relocation is legible; grenade arc, bounce and blast feel, and whether self-damage is too punishing; ADS FOV/camera easing; whether four planks per barrier makes early rounds drag or gives the repair economy real weight; and a balance pass on perk costs, the 950 draw, and the +10 a plank rebuild income."
   },
   {
     "id": "phase-3-forge-and-dogs",
@@ -81,7 +88,7 @@
     "title": "Add power systems, power-ups, and second map",
     "phase": "Phase 3",
     "status": "todo",
-    "details": "Implement power-ups (Resupply/Executioner/Purge/Bonus/Fortify), the power switch, and a second map."
+    "details": "Implement power-ups (Resupply/Executioner/Purge/Bonus/Fortify) and the power switch. The second map shipped in Phase 1 \u2014 the roster is five maps."
   },
   {
     "id": "phase-4-boss-content",

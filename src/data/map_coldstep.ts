@@ -72,6 +72,22 @@ export const COLDSTEP: MapDef = {
     { pos: { x: -28, y: 20 }, weaponId: "lancer", region: 2 },
   ],
 
+  // Two perks out in the ring (you will be lapping past them anyway) and one in
+  // each annex, so a paid room always pays you back in something permanent.
+  perkMachines: [
+    { pos: { x: -2, y: 8.8 }, rot: 1.5708, perkId: "secondwind", region: 0 },
+    { pos: { x: 11.8, y: -2 }, rot: 0, perkId: "rapidrounds", region: 0 },
+    { pos: { x: 16, y: -14 }, rot: 1.5708, perkId: "ironhide", region: 1 },
+    { pos: { x: -25, y: 13 }, rot: 1.5708, perkId: "fasthands", region: 2 },
+  ],
+
+  cacheSites: [
+    { pos: { x: -14, y: 14 }, region: 0 },
+    { pos: { x: 26, y: -19 }, region: 1 },
+  ],
+
+  supplies: [{ pos: { x: 24, y: 6 }, region: 0 }],
+
   doors: [
     {
       id: "annex-door",

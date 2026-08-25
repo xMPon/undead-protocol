@@ -89,7 +89,28 @@ export const BLACKSITE: MapDef = {
     { pos: { x: 56, y: 22 }, weaponId: "havoc", region: 3 },
   ],
 
-  // Progression: the vault opens off spawn, the substation is the other cheap
+  // Perk machines, one per wing, so the deeper rooms are worth the door price.
+  perkMachines: [
+    { pos: { x: -24, y: 5 }, rot: 0, perkId: "secondwind", region: 0 },
+    { pos: { x: 60, y: 2.5 }, rot: 3.1416, perkId: "ironhide", region: 1 },
+    { pos: { x: 26, y: 22 }, rot: 3.1416, perkId: "rapidrounds", region: 2 },
+    { pos: { x: 54, y: 21 }, rot: 1.5708, perkId: "fasthands", region: 3 },
+  ],
+
+  // Three places The Cache can set up. It moves after a few draws, so opening
+  // the compound is also how you keep the box within reach.
+  cacheSites: [
+    { pos: { x: 0, y: 10 }, region: 0 },
+    { pos: { x: 44, y: -6 }, region: 1 },
+    { pos: { x: 42, y: 31 }, region: 3 },
+  ],
+
+  supplies: [
+    { pos: { x: 22, y: -12 }, region: 0 },
+    { pos: { x: 8, y: 30 }, region: 2 },
+  ],
+
+// Progression: the vault opens off spawn, the substation is the other cheap
   // branch, and the cold store sits behind the vault — so the deepest room costs
   // two doors to reach.
   doors: [

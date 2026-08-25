@@ -11,9 +11,12 @@ const CONTROLS: Array<[string, string]> = [
   ["Aim", "Mouse"],
   ["Turn", "Q / E or \u2190 \u2192"],
   ["Fire", "Left Click"],
+  ["Aim (ADS)", "Right Click"],
+  ["Grenade", "G"],
   ["Reload", "R"],
   ["Weapons", "1 / 2"],
   ["Buy / Open", "F"],
+  ["Rebuild Barrier", "Hold F"],
   ["Sprint", "Shift"],
   ["Jump", "Space"],
   ["Toggle View", "T"],
@@ -54,7 +57,7 @@ export class Menu {
       <div class="controls">
         ${CONTROLS.map(([k, v]) => `<div>${k}</div><div class="k">${v}</div>`).join("")}
       </div>
-      <div class="credit">Phase 1 · ${MAPS.length} maps · open-source (MIT)</div>
+      <div class="credit">Phase 2 · ${MAPS.length} maps · perks · The Cache · open-source (MIT)</div>
     `;
     parent.appendChild(this.el);
 

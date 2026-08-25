@@ -12,8 +12,11 @@ import { resolveCircleObstacles } from "../src/sim/collision";
 import { FlowField } from "../src/sim/pathing";
 import { PROP_SPECS, footprintExtents, isSolidProp, propColliders, colliderAabb } from "../src/sim/props";
 import type { PropCollider } from "../src/sim/props";
+import { PERK_MACHINE, CACHE_BOX, SUPPLY_CRATE, fixtureAabb } from "../src/sim/fixtures";
+import type { FixtureSpec } from "../src/sim/fixtures";
 import { emptyIntent } from "../src/sim/types";
 import { getWeapon } from "../src/data/weapons";
+import { PERKS } from "../src/data/perks";
 import { Player } from "../src/sim/Player";
 import type { MapDef, PropDef, WallRect } from "../src/sim/types";
 import type { Vec2 } from "../src/core/math";
@@ -62,6 +65,27 @@ function caged(def: MapDef, v: Vec2): boolean {
 
 function solidProps(def: MapDef): PropDef[] {
   return (def.props ?? []).filter(isSolidProp);
+}
+
+/** Every fixture a map places, as a labelled rect, for the shared placement checks. */
+function fixtures(def: MapDef): Array<{ label: string; rect: WallRect; spec: FixtureSpec; pos: Vec2 }> {
+  const out: Array<{ label: string; rect: WallRect; spec: FixtureSpec; pos: Vec2 }> = [];
+  for (const m of def.perkMachines ?? []) {
+    out.push({ label: `${m.perkId} machine`, rect: fixtureAabb(PERK_MACHINE, m.pos, m.rot ?? 0), spec: PERK_MACHINE, pos: m.pos });
+  }
+  (def.cacheSites ?? []).forEach((c, i) => {
+    out.push({ label: `cache site ${i}`, rect: fixtureAabb(CACHE_BOX, c.pos, c.rot ?? 0), spec: CACHE_BOX, pos: c.pos });
+  });
+  (def.supplies ?? []).forEach((c, i) => {
+    out.push({ label: `supply crate ${i}`, rect: fixtureAabb(SUPPLY_CRATE, c.pos, c.rot ?? 0), spec: SUPPLY_CRATE, pos: c.pos });
+  });
+  return out;
+}
+
+function rectsOverlap(a: WallRect, b: WallRect, pad = 0.05): boolean {
+  const ox = Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX);
+  const oy = Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY);
+  return ox > pad && oy > pad;
 }
 
 /** Where a zombie appears for a barrier, and the first steps of its route in. */
@@ -163,7 +187,9 @@ describe.each(MAP_CASES)("%s map data", (_name, def) => {
   it("feeds one collision rect per solid collider and nothing for dressing", () => {
     const map = new GameMap(def);
     const pieces = solidProps(def).reduce((n, p) => n + propColliders(p).length, 0);
-    expect(map.walls.length).toBe(def.walls.length + def.doors.length + pieces);
+    // Perk cabinets are solid; The Cache and supply crates deliberately are not.
+    const machines = (def.perkMachines ?? []).length;
+    expect(map.walls.length).toBe(def.walls.length + def.doors.length + pieces + machines);
   });
 
   it("leaves the inside of a multi-part prop walkable and reachable", () => {
@@ -218,6 +244,88 @@ describe.each(MAP_CASES)("%s map data", (_name, def) => {
     for (const wb of def.wallBuys) expect(() => getWeapon(wb.weaponId)).not.toThrow();
     for (const d of def.doors) expect(d.cost).toBeGreaterThan(0);
     expect(INTERACT_RANGE).toBeGreaterThan(0);
+  });
+
+  it("puts every perk machine, cache site and supply where the player can use it", () => {
+    const items = fixtures(def);
+    for (const f of items) {
+      expect.soft(f.rect.minX, `${f.label} leaves the map`).toBeGreaterThanOrEqual(def.bounds.minX);
+      expect.soft(f.rect.maxX, `${f.label} leaves the map`).toBeLessThanOrEqual(def.bounds.maxX);
+      expect.soft(f.rect.minY, `${f.label} leaves the map`).toBeGreaterThanOrEqual(def.bounds.minY);
+      expect.soft(f.rect.maxY, `${f.label} leaves the map`).toBeLessThanOrEqual(def.bounds.maxY);
+      expect.soft(caged(def, f.pos), `${f.label} sits outside playBounds`).toBe(true);
+
+      for (const w of def.walls) {
+        expect.soft(rectsOverlap(f.rect, w), `${f.label} is buried in a wall`).toBe(false);
+      }
+      for (const d of def.doors) {
+        expect.soft(rectsOverlap(f.rect, d.blocks), `${f.label} is inside the ${d.id} doorway`).toBe(false);
+      }
+      for (const p of solidProps(def)) {
+        expect.soft(rectsOverlap(f.rect, propRect(p)), `${f.label} grows through a ${p.kind}`).toBe(false);
+      }
+      // Nothing may stand in a breach route: a blocked window is a barrier the
+      // horde queues at forever, which reads in game as a round that never ends.
+      for (const b of def.barriers) {
+        for (const step of breachRoute(b.pos, b.inward)) {
+          expect.soft(
+            inflatedContains(f.rect, step, 0.4),
+            `${f.label} blocks the barrier at ${b.pos.x},${b.pos.y}`,
+          ).toBe(false);
+        }
+      }
+    }
+
+    // Two machines sharing a spot is invisible in a diff and obvious in game.
+    for (let i = 0; i < items.length; i++) {
+      for (let j = i + 1; j < items.length; j++) {
+        expect.soft(rectsOverlap(items[i].rect, items[j].rect), `${items[i].label} overlaps ${items[j].label}`).toBe(false);
+      }
+    }
+  });
+
+  it("names real perks, one machine each, and never sells a box gun off a wall", () => {
+    const seen = new Set<string>();
+    for (const m of def.perkMachines ?? []) {
+      expect.soft(PERKS[m.perkId], `unknown perk ${m.perkId}`).toBeTruthy();
+      expect.soft(seen.has(m.perkId), `${m.perkId} has two machines`).toBe(false);
+      seen.add(m.perkId);
+      expect.soft(def.startRegions.includes(m.region) || def.doors.some((d) => d.opensRegion === m.region), `${m.perkId} machine is in unreachable region ${m.region}`).toBe(true);
+    }
+    for (const wb of def.wallBuys) {
+      expect.soft(getWeapon(wb.weaponId).boxOnly ?? false, `${wb.weaponId} is box-only and cannot be a wall-buy`).toBe(false);
+    }
+  });
+
+  it("starts The Cache somewhere the player can already stand", () => {
+    const sites = def.cacheSites ?? [];
+    if (sites.length === 0) return;
+    const live = sites.filter((c) => def.startRegions.includes(c.region));
+    expect(live.length, "no cache site opens with the map").toBeGreaterThan(0);
+    const world = new World(def);
+    expect(world.cacheSite()).not.toBeNull();
+    expect(def.startRegions.includes(world.cacheSite()!.region)).toBe(true);
+  });
+
+  it("leaves every fixture pathable once the compound is open", () => {
+    const map = new GameMap(def);
+    for (const door of def.doors) map.openDoor(door.id);
+    const flow = new FlowField(def.bounds, 0.8);
+    flow.rebuild(map.walls);
+    flow.compute(def.playerSpawn);
+    for (const f of fixtures(def)) {
+      // A solid cabinet is itself a wall in the flow field, so what has to be
+      // reachable is the ground in front of it — where the player stands to buy.
+      const spots = f.spec.solid
+        ? [
+            { x: f.pos.x + 1.4, y: f.pos.y },
+            { x: f.pos.x - 1.4, y: f.pos.y },
+            { x: f.pos.x, y: f.pos.y + 1.4 },
+            { x: f.pos.x, y: f.pos.y - 1.4 },
+          ]
+        : [f.pos];
+      expect.soft(spots.some((v) => flow.reachable(v)), `${f.label} is walled in`).toBe(true);
+    }
   });
 
   it("keeps every active breach point able to path to the player", () => {
