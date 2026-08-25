@@ -77,7 +77,26 @@ export const DUSTLINE: MapDef = {
     { pos: { x: 8, y: 18 }, weaponId: "havoc", region: 3 },
   ],
 
-  // Cheap doors, because the rooms are small and you will want out of each one.
+  // One perk per room. The rooms are tiny, so every cabinet is also cover you
+  // have to fight around — which is the point of putting them here.
+  perkMachines: [
+    { pos: { x: -16.5, y: -4.6 }, rot: 1.5708, perkId: "secondwind", region: 0 },
+    { pos: { x: -4.5, y: 4.6 }, rot: -1.5708, perkId: "rapidrounds", region: 1 },
+    { pos: { x: 7, y: 3 }, rot: -1.5708, perkId: "fasthands", region: 2 },
+    { pos: { x: 17.5, y: 18 }, rot: 3.1416, perkId: "ironhide", region: 3 },
+  ],
+
+  cacheSites: [
+    { pos: { x: -16, y: 3.5 }, region: 0 },
+    { pos: { x: 13.5, y: 10.5 }, region: 3 },
+  ],
+
+  supplies: [
+    { pos: { x: -22, y: 4 }, region: 0 },
+    { pos: { x: 10, y: 4 }, region: 2 },
+  ],
+
+// Cheap doors, because the rooms are small and you will want out of each one.
   doors: [
     {
       id: "corridor-door",

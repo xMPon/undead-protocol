@@ -5,6 +5,8 @@
 export const POINTS_HIT = 10;
 export const POINTS_KILL = 60;
 export const START_POINTS = 500;
+/** Paid per plank nailed back onto a barrier — the classic broke-round income. */
+export const POINTS_REPAIR = 10;
 
 export function canAfford(points: number, cost: number): boolean {
   return points >= cost;

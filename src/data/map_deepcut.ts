@@ -77,7 +77,26 @@ export const DEEPCUT: MapDef = {
     { pos: { x: 4, y: 26 }, weaponId: "lancer", region: 3 },
   ],
 
-  // Three doors off one room. Nothing is "next"; everything is a choice.
+  // Two in the bowl you start in and one up each gallery — the machines are the
+  // reason to climb back out of the pit once the rounds get long.
+  perkMachines: [
+    { pos: { x: -10.5, y: -6 }, rot: 0, perkId: "secondwind", region: 0 },
+    { pos: { x: 9, y: -8 }, rot: 3.1416, perkId: "rapidrounds", region: 0 },
+    { pos: { x: 4, y: -20 }, rot: 3.1416, perkId: "ironhide", region: 1 },
+    { pos: { x: 28, y: 4 }, rot: 3.1416, perkId: "fasthands", region: 2 },
+  ],
+
+  cacheSites: [
+    { pos: { x: 0, y: -2 }, region: 0 },
+    { pos: { x: 1, y: 20 }, region: 3 },
+  ],
+
+  supplies: [
+    { pos: { x: 5, y: 9 }, region: 0 },
+    { pos: { x: 14, y: 1 }, region: 2 },
+  ],
+
+// Three doors off one room. Nothing is "next"; everything is a choice.
   doors: [
     {
       id: "north-door",

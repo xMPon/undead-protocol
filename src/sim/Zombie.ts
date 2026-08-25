@@ -38,6 +38,10 @@ export class Zombie {
 
   state: ZombieState = "rising";
   riseTimer = ZOMBIE_RISE_TIME;
+  /** Index into `MapDef.barriers` of the boarded window it came through, or -1. */
+  barrier = -1;
+  /** Seconds until the next plank comes off, while `state` is "breaching". */
+  breachTimer = 0;
   attackCooldown = 0;
   hitFlash = 0; // decays — drives white damage flash in renderers
   deadTimer = 0; // time since death, for the renderer's fade-out

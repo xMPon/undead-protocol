@@ -1,22 +1,33 @@
-// Runtime wrapper over a static MapDef. Tracks which doors are open and which
-// regions are live, and exposes the *current* collision walls (perimeter plus
-// any still-closed door). DOM-free.
+// Runtime wrapper over a static MapDef. Tracks which doors are open, which
+// regions are live, and how many planks are left on each barrier, and exposes
+// the *current* collision walls (perimeter plus any still-closed door). DOM-free.
 
 import type { Vec2 } from "../core/math";
 import { distSq } from "../core/math";
-import type { MapDef, WallRect, BarrierDef, WallBuyDef, DoorDef } from "./types";
+import type { MapDef, WallRect, BarrierDef, WallBuyDef, DoorDef, PerkMachineDef, CacheSiteDef, SupplyDef } from "./types";
 import { propColliders, colliderAabb, isSolidProp } from "./props";
+import { Boards } from "./Barriers";
+import { PERK_MACHINE, fixtureAabb } from "./fixtures";
 
 export const INTERACT_RANGE = 2.4;
+
+/** A barrier plus where it sits in `def.barriers`, which is its board index. */
+export interface IndexedBarrier {
+  index: number;
+  def: BarrierDef;
+}
 
 export class GameMap {
   readonly def: MapDef;
   readonly openedDoors = new Set<string>();
   readonly activeRegions = new Set<number>();
+  /** Plank counts, indexed to match `def.barriers`. */
+  readonly boards: Boards;
   walls: WallRect[] = [];
 
   constructor(def: MapDef) {
     this.def = def;
+    this.boards = new Boards(def.barriers.length);
     for (const r of def.startRegions) this.activeRegions.add(r);
     this.rebuildWalls();
   }
@@ -34,6 +45,9 @@ export class GameMap {
       if (!isSolidProp(p)) continue;
       for (const c of propColliders(p)) walls.push(colliderAabb(c));
     }
+    // Perk cabinets are solid whatever region they are in — a machine you can
+    // walk through is scenery, and the horde would path straight through it too.
+    for (const m of this.def.perkMachines ?? []) walls.push(fixtureAabb(PERK_MACHINE, m.pos, m.rot ?? 0));
     this.walls = walls;
   }
 
@@ -45,8 +59,34 @@ export class GameMap {
     return this.def.barriers.filter((b) => this.activeRegions.has(b.region));
   }
 
+  /** Live barriers with their board index — what the spawner and repairs need. */
+  activeBarrierEntries(): IndexedBarrier[] {
+    const out: IndexedBarrier[] = [];
+    this.def.barriers.forEach((def, index) => {
+      if (this.activeRegions.has(def.region)) out.push({ index, def });
+    });
+    return out;
+  }
+
   activeWallBuys(): WallBuyDef[] {
     return this.def.wallBuys.filter((w) => this.activeRegions.has(w.region));
+  }
+
+  activePerkMachines(): PerkMachineDef[] {
+    return (this.def.perkMachines ?? []).filter((m) => this.activeRegions.has(m.region));
+  }
+
+  activeSupplies(): SupplyDef[] {
+    return (this.def.supplies ?? []).filter((s) => this.activeRegions.has(s.region));
+  }
+
+  /** Indices into `def.cacheSites` whose region is live — where the box may go. */
+  liveCacheSites(): number[] {
+    const out: number[] = [];
+    (this.def.cacheSites ?? []).forEach((site: CacheSiteDef, i: number) => {
+      if (this.activeRegions.has(site.region)) out.push(i);
+    });
+    return out;
   }
 
   /** Open a door by id; returns the newly-unlocked region (or null). */
@@ -74,15 +114,47 @@ export class GameMap {
   }
 
   nearestWallBuy(pos: Vec2, range = INTERACT_RANGE): WallBuyDef | null {
-    let best: WallBuyDef | null = null;
+    return nearest(this.activeWallBuys(), pos, range);
+  }
+
+  nearestPerkMachine(pos: Vec2, range = INTERACT_RANGE): PerkMachineDef | null {
+    return nearest(this.activePerkMachines(), pos, range);
+  }
+
+  nearestSupply(pos: Vec2, range = INTERACT_RANGE): SupplyDef | null {
+    return nearest(this.activeSupplies(), pos, range);
+  }
+
+  /**
+   * The live barrier nearest `pos` that is missing planks. Barriers sit in wall
+   * gaps, so the reach is a little longer than a wall-buy's — you rebuild from
+   * inside the room, not by standing in the hole.
+   */
+  nearestRepairableBarrier(pos: Vec2, range = INTERACT_RANGE + 0.6): IndexedBarrier | null {
+    let best: IndexedBarrier | null = null;
     let bestD = range * range;
-    for (const w of this.activeWallBuys()) {
-      const dd = distSq(pos, w.pos);
+    for (const entry of this.activeBarrierEntries()) {
+      if (!this.boards.needsRepair(entry.index)) continue;
+      const dd = distSq(pos, entry.def.pos);
       if (dd < bestD) {
         bestD = dd;
-        best = w;
+        best = entry;
       }
     }
     return best;
   }
+}
+
+/** Nearest of a list of positioned things within `range`, or null. */
+function nearest<T extends { pos: Vec2 }>(items: T[], pos: Vec2, range: number): T | null {
+  let best: T | null = null;
+  let bestD = range * range;
+  for (const item of items) {
+    const dd = distSq(pos, item.pos);
+    if (dd < bestD) {
+      bestD = dd;
+      best = item;
+    }
+  }
+  return best;
 }

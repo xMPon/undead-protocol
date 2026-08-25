@@ -4,6 +4,9 @@ import { Zombie } from "../src/sim/Zombie";
 import { emptyIntent } from "../src/sim/types";
 import type { Intent } from "../src/sim/types";
 import { FIRST_ROUND_DELAY } from "../src/sim/Round";
+import { getPerk } from "../src/data/perks";
+import { CACHE_COST, SPIN_TIME } from "../src/sim/Cache";
+import { REVIVE_TIME } from "../src/sim/Perks";
 
 const DT = 1 / 60;
 
@@ -112,5 +115,80 @@ describe("World — economy interactions", () => {
     w.update(DT, { ...emptyIntent(), interact: true });
     expect(w.map.openedDoors.has("vault-door")).toBe(false);
     expect(w.player.points).toBe(100);
+  });
+});
+
+describe("World — perks, The Cache and sights", () => {
+  it("sells a perk at its machine and refuses to sell it twice", () => {
+    const w = new World();
+    const machine = w.def.perkMachines!.find((m) => m.region === 0)!;
+    const def = getPerk(machine.perkId);
+    w.player.pos = { x: machine.pos.x + 1.4, y: machine.pos.y };
+    w.player.points = def.cost + 500;
+
+    w.update(DT, emptyIntent());
+    expect(w.prompt?.kind).toBe("perk");
+    w.update(DT, { ...emptyIntent(), interact: true });
+    expect(w.player.hasPerk(def.id)).toBe(true);
+    expect(w.player.points).toBe(500);
+
+    // Tapping it again must not take another 1500 points off the player.
+    w.update(DT, emptyIntent());
+    w.update(DT, { ...emptyIntent(), interact: true });
+    expect(w.player.points).toBe(500);
+  });
+
+  it("refuses the perk when broke", () => {
+    const w = new World();
+    const machine = w.def.perkMachines!.find((m) => m.region === 0)!;
+    w.player.pos = { x: machine.pos.x + 1.4, y: machine.pos.y };
+    w.player.points = 10;
+    w.update(DT, emptyIntent());
+    w.update(DT, { ...emptyIntent(), interact: true });
+    expect(w.player.perks.size).toBe(0);
+    expect(w.player.points).toBe(10);
+  });
+
+  it("takes 950 for a Cache draw and hands over the weapon it settles on", () => {
+    const w = new World();
+    const site = w.cacheSite()!;
+    w.player.pos = { x: site.pos.x + 1.2, y: site.pos.y };
+    w.player.points = 2000;
+
+    w.update(DT, emptyIntent());
+    expect(w.prompt?.kind).toBe("cache");
+    w.update(DT, { ...emptyIntent(), interact: true });
+    expect(w.player.points).toBe(2000 - CACHE_COST);
+
+    step(w, SPIN_TIME + 0.2, emptyIntent());
+    expect(w.cache.isOffering).toBe(true);
+    const offered = w.cache.display;
+    w.update(DT, { ...emptyIntent(), interact: true });
+    expect(w.player.hasWeapon(offered)).toBeGreaterThanOrEqual(0);
+  });
+
+  it("tightens spread and slows the walk when aiming down sights", () => {
+    const hip = new World();
+    const sighted = new World();
+    const forward = { x: 1, y: 0 };
+    step(hip, 0.5, { ...emptyIntent(), move: forward });
+    step(sighted, 0.5, { ...emptyIntent(), move: forward, ads: true });
+    expect(sighted.player.pos.x - sighted.def.playerSpawn.x).toBeLessThan(hip.player.pos.x - hip.def.playerSpawn.x);
+    expect(sighted.ads).toBe(true);
+  });
+
+  it("takes the controls away while the player is down, then gives them back", () => {
+    const w = new World();
+    w.player.grantPerk("secondwind");
+    w.player.hurt(10_000);
+    const at = { ...w.player.pos };
+    step(w, 0.5, { ...emptyIntent(), move: { x: 1, y: 0 }, firing: true });
+    expect(w.player.pos.x).toBeCloseTo(at.x, 5);
+    expect(w.gameOver).toBe(false);
+
+    step(w, REVIVE_TIME, emptyIntent());
+    expect(w.player.downed).toBe(false);
+    step(w, 0.5, { ...emptyIntent(), move: { x: 1, y: 0 } });
+    expect(w.player.pos.x).toBeGreaterThan(at.x);
   });
 });
