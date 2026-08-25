@@ -179,9 +179,9 @@
     "id": "backlog-touch-controls",
     "title": "Make the game playable on touch devices",
     "phase": "Backlog",
-    "status": "todo",
+    "status": "done",
     "size": "L",
-    "details": "The public Pages link means phones will open it, and right now the game loads and cannot be played: movement, aim and fire are all keyboard/mouse and the 3D view needs pointer lock. Needs an on-screen twin-stick layer feeding the existing Intent (which is already view-independent, so the sim needs no change), touch-friendly HUD hit targets, and a device check that offers the 2D view by default."
+    "details": "Shipped: a twin-stick overlay in core/Touch.ts feeding the existing view-independent Intent, so the simulation is untouched. Floating movement stick on the left, look/aim drag on the right (deltas steer the 3D camera, direction sets aim in the 2D view), FIRE/AIM/RELOAD/FRAG/USE/JUMP/SWAP buttons plus on-screen pause and view toggle, and sprint by pushing the stick to its edge rather than spending a button on it. Enabled automatically on coarse-pointer devices, overridable in the pause menu (auto/on/off, persisted), with pointer lock skipped, safe-area insets respected, a menu and HUD that fit a phone, and the render budget capped on mobile. Covered by 16 DOM tests driving real pointer events plus the stick geometry unit tests. Still unverified on physical hardware."
   },
   {
     "id": "backlog-audio-settings",
@@ -229,7 +229,7 @@
     "phase": "Backlog",
     "status": "todo",
     "size": "S",
-    "details": "Shadow maps at 2048, ACES tone mapping, a 14-light pool and full device pixel ratio are a lot to ask of an integrated GPU or a laptop on battery. Add low/medium/high presets in the pause menu (shadows off, smaller shadow map, capped pixel ratio, fewer pooled lights), persisted, defaulting from a quick capability probe."
+    "details": "Shadow maps, ACES tone mapping, a 14-light pool and full device pixel ratio are a lot to ask of an integrated GPU or a laptop on battery. Touch devices already get a floor (pixel ratio capped at 1.5, 1024 shadow map); this item is the real thing: low/medium/high presets in the pause menu covering shadows, shadow map size, pixel ratio and pooled light count, persisted, defaulting from a capability probe."
   },
   {
     "id": "backlog-round-feedback",

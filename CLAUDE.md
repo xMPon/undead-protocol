@@ -31,7 +31,8 @@ changes nothing about game state.
 | `core/math.ts` | `Vec2` + pure vector/angle helpers (the shared ground-plane math) |
 | `core/rng.ts` | mulberry32 PRNG + integer hash (blockcraft pattern) |
 | `core/Loop.ts` | RAF loop with clamped dt |
-| `core/Input.ts` | keyboard state, one-frame edges, mouse pos/delta, pointer lock + `onLockChange` |
+| `core/Input.ts` | keyboard state, one-frame edges, mouse pos/delta, pointer lock + `onLockChange`; carries `touch` |
+| `core/Touch.ts` | on-screen twin-stick overlay for phones — floating sticks, held buttons, pure stick geometry (`stickVector`) |
 | `core/Sound.ts` | procedural WebAudio SFX (guns, groans, hits, round sting) — no files |
 | `sim/types.ts` | `Intent`, weapon/map/terrain/theme/prop/light/decal/fixture data shapes, `Obstacle`, `Tracer`, `Blast` |
 | `sim/World.ts` | **the integrator** — owns all state incl. terrain, obstacles, jump physics, grenades in flight, the Cache, and the interaction focus; `update(dt, intent)` |
@@ -74,6 +75,11 @@ changes nothing about game state.
   `window`. That's what lets `tests/world.test.ts` drive the entire game in Node.
 - **The sim reads `Intent`, never `Input`.** View-specific mapping (camera-yaw
   aim in 3D, cursor aim in 2D) lives in each renderer's `buildIntent`.
+- **Touch is a second input device, not a second code path.** `core/Touch.ts`
+  produces the same quantities the keyboard and mouse do — a movement vector,
+  look deltas, held buttons — and hangs off `Input.touch`, so `buildIntent`
+  merges it and nothing below the renderers knows a phone exists. Add a control
+  by merging it in both `buildIntent`s, never by branching the simulation.
 - **Roadmap every change.** Before introducing a feature, fixing a bug,
   addressing technical debt, or making a meaningful maintenance change, link the
   work to an existing roadmap issue or create a new categorised roadmap entry.

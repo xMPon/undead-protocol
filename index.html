@@ -2,7 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <!-- viewport-fit=cover is what makes env(safe-area-inset-*) non-zero, which
+         is what keeps the touch buttons off a notch or a home indicator. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0a0b0c" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <title>Undead Protocol</title>
   </head>
   <body>

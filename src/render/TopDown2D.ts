@@ -39,6 +39,8 @@ export class TopDown2D implements Renderer {
   private h = 1;
   private px = 0;
   private py = 0;
+  /** Last aim heading, held while no pointer or stick is steering it. */
+  private aim = 0;
 
   mount(container: HTMLElement): void {
     this.canvas = document.createElement("canvas");
@@ -528,27 +530,44 @@ export class TopDown2D implements Renderer {
 
   buildIntent(world: World, input: Input, _dt: number): Intent {
     const intent = emptyIntent();
+    const touch = input.touch?.active ? input.touch : null;
     let mx = 0;
     let my = 0;
     if (input.isDown("KeyW")) my -= 1;
     if (input.isDown("KeyS")) my += 1;
     if (input.isDown("KeyA")) mx -= 1;
     if (input.isDown("KeyD")) mx += 1;
+    // The top-down view is world-relative, so the stick maps straight onto it.
+    if (touch) {
+      mx += touch.move.x;
+      my += touch.move.y;
+    }
     intent.move = { x: mx, y: my };
 
-    const wx = world.player.pos.x + (input.mouseX - this.w / 2) / SCALE;
-    const wy = world.player.pos.y + (input.mouseY - this.h / 2) / SCALE;
-    intent.aim = Math.atan2(wy - world.player.pos.y, wx - world.player.pos.x);
+    // Twin-stick aim: where the right stick points is where the player aims, and
+    // the last heading is held when the thumb lifts rather than snapping east.
+    const look = touch?.look;
+    if (look && (look.x !== 0 || look.y !== 0)) {
+      this.aim = Math.atan2(look.y, look.x);
+    } else if (!touch) {
+      const wx = world.player.pos.x + (input.mouseX - this.w / 2) / SCALE;
+      const wy = world.player.pos.y + (input.mouseY - this.h / 2) / SCALE;
+      this.aim = Math.atan2(wy - world.player.pos.y, wx - world.player.pos.x);
+    }
+    intent.aim = this.aim;
 
-    intent.firing = input.left;
-    intent.reload = input.isDown("KeyR");
-    intent.interact = input.isDown("KeyF");
-    intent.sprint = input.isDown("ShiftLeft") || input.isDown("ShiftRight");
-    intent.jump = input.isDown("Space");
-    intent.ads = input.right;
-    intent.grenade = input.isDown("KeyG");
+    intent.firing = input.left || !!touch?.isDown("fire");
+    intent.reload = input.isDown("KeyR") || !!touch?.isDown("reload");
+    intent.interact = input.isDown("KeyF") || !!touch?.isDown("interact");
+    intent.sprint = input.isDown("ShiftLeft") || input.isDown("ShiftRight") || !!touch?.sprint;
+    intent.jump = input.isDown("Space") || !!touch?.isDown("jump");
+    intent.ads = input.right || !!touch?.isDown("ads");
+    intent.grenade = input.isDown("KeyG") || !!touch?.isDown("grenade");
     if (input.wasPressed("Digit1")) intent.switchTo = 0;
     else if (input.wasPressed("Digit2")) intent.switchTo = 1;
+    else if (touch?.wasPressed("swap") && world.player.weapons.length > 1) {
+      intent.switchTo = (world.player.current + 1) % world.player.weapons.length;
+    }
     return intent;
   }
 

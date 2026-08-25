@@ -39,6 +39,7 @@ import { getPerk } from "../data/perks";
 import { settings } from "../persist/Store";
 import { rayVsRect } from "../sim/collision";
 import { MAX_BOARDS } from "../sim/Barriers";
+import { LOOK_PER_PX, prefersTouch } from "../core/Touch";
 import { GRENADE_RADIUS } from "../sim/Grenade";
 
 const WALL_H = 2.6;
@@ -195,6 +196,9 @@ export class ThirdPerson3D implements Renderer {
   private blastLight!: THREE.PointLight;
   private fov = FOV_HIP;
 
+  /** Coarse-pointer device: render at a budget it can actually hold 60fps at. */
+  private mobile = false;
+
   private time = 0;
   private emitters: Emitter[] = [];
   private lightPool: THREE.PointLight[] = [];
@@ -211,7 +215,11 @@ export class ThirdPerson3D implements Renderer {
     this.canvas.id = "view-3d";
     container.appendChild(this.canvas);
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    // A phone renders a lot fewer pixels than its DPR suggests it should: at 3x
+    // this scene is a slideshow. A proper quality-preset menu is its own backlog
+    // item; this is the floor that makes the touch build playable at all.
+    this.mobile = prefersTouch();
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, this.mobile ? 1.5 : 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
@@ -343,7 +351,7 @@ export class ThirdPerson3D implements Renderer {
     this.dirLight.target.position.set(mcx, 0, mcz);
     this.scene.add(this.dirLight.target);
     this.dirLight.castShadow = true;
-    this.dirLight.shadow.mapSize.set(2048, 2048);
+    this.dirLight.shadow.mapSize.set(this.mobile ? 1024 : 2048, this.mobile ? 1024 : 2048);
     const sc = this.dirLight.shadow.camera;
     const half = span * 0.62;
     sc.left = -half;
@@ -1110,6 +1118,16 @@ export class ThirdPerson3D implements Renderer {
     this.yaw += input.mouseDX * sens;
     this.pitch = Math.max(-0.5, Math.min(0.8, this.pitch + input.mouseDY * sens * invert));
 
+    // A drag on the right of the screen is the same gesture as a mouse move, so
+    // it feeds the same two angles — at its own scale, because a thumb has a lot
+    // less travel than a mouse.
+    const touch = input.touch?.active ? input.touch : null;
+    if (touch) {
+      const tsens = LOOK_PER_PX * settings.lookSensitivity;
+      this.yaw += touch.lookDX * tsens;
+      this.pitch = Math.max(-0.5, Math.min(0.8, this.pitch + touch.lookDY * tsens * invert));
+    }
+
     // Keyboard turning. Essential on a trackpad, where there is not enough travel
     // to spin round, and it leaves the mouse free to keep firing.
     const turn = TURN_RATE * settings.turnSpeed * dt;
@@ -1129,22 +1147,32 @@ export class ThirdPerson3D implements Renderer {
     if (input.isDown("KeyS")) { mx -= fx; my -= fy; }
     if (input.isDown("KeyD")) { mx += rx; my += ry; }
     if (input.isDown("KeyA")) { mx -= rx; my -= ry; }
+    // The movement stick is camera-relative, exactly as WASD is: pushing it away
+    // from you walks the way the camera is facing.
+    if (touch) {
+      mx += fx * -touch.move.y + rx * touch.move.x;
+      my += fy * -touch.move.y + ry * touch.move.x;
+    }
+
     intent.move = { x: mx, y: my };
     intent.aim = this.yaw;
-    intent.firing = input.left;
-    intent.reload = input.isDown("KeyR");
-    intent.interact = input.isDown("KeyF");
-    intent.sprint = input.isDown("ShiftLeft") || input.isDown("ShiftRight");
-    intent.jump = input.isDown("Space");
-    intent.ads = input.right;
-    intent.grenade = input.isDown("KeyG");
+    intent.firing = input.left || !!touch?.isDown("fire");
+    intent.reload = input.isDown("KeyR") || !!touch?.isDown("reload");
+    intent.interact = input.isDown("KeyF") || !!touch?.isDown("interact");
+    intent.sprint = input.isDown("ShiftLeft") || input.isDown("ShiftRight") || !!touch?.sprint;
+    intent.jump = input.isDown("Space") || !!touch?.isDown("jump");
+    intent.ads = input.right || !!touch?.isDown("ads");
+    intent.grenade = input.isDown("KeyG") || !!touch?.isDown("grenade");
     if (input.wasPressed("Digit1")) intent.switchTo = 0;
     else if (input.wasPressed("Digit2")) intent.switchTo = 1;
+    else if (touch?.wasPressed("swap")) intent.switchTo = nextSlot(_world);
     return intent;
   }
 
   onActivate(input: Input): void {
-    input.requestLock();
+    // Pointer lock is a mouse concept; asking for it on a phone does nothing
+    // useful and puts a permission prompt in front of the game.
+    if (!input.touch?.active) input.requestLock();
   }
 
   resize(w: number, h: number): void {
@@ -1163,6 +1191,13 @@ export class ThirdPerson3D implements Renderer {
   dispose(): void {
     this.renderer.dispose();
   }
+}
+
+/** The weapon slot the SWAP button should move to — there are only ever two. */
+function nextSlot(world: World): number | null {
+  const p = world.player;
+  if (p.weapons.length < 2) return null;
+  return (p.current + 1) % p.weapons.length;
 }
 
 /** Free the geometry and materials under an object before dropping it. */

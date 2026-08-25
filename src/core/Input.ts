@@ -2,6 +2,12 @@
 // Intent; the simulation never sees Input directly. Tracks held keys, one-frame
 // "just pressed" edges, mouse position (for top-down aim), accumulated mouse
 // deltas (for 3D mouselook under pointer lock), and buttons.
+//
+// On a phone the same job is done by `core/Touch.ts`, which hangs off `touch`
+// here so a renderer's `buildIntent` can read both devices without the Renderer
+// contract needing to know how many input devices exist.
+
+import type { TouchState } from "./Touch";
 
 export class Input {
   readonly keys = new Set<string>(); // e.code of held keys
@@ -13,6 +19,8 @@ export class Input {
   left = false;
   right = false;
   locked = false;
+  /** The touch overlay, when one is mounted. Null on a keyboard-and-mouse run. */
+  touch: TouchState | null = null;
   /**
    * Fired whenever pointer lock is gained or lost. Browsers exit pointer lock on
    * Escape and swallow that keydown, so this is the only reliable way to notice

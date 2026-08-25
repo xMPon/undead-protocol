@@ -4,7 +4,25 @@
 
 import type { ViewName } from "../render/ViewManager";
 import { settings, updateSettings, DEFAULT_SETTINGS } from "../persist/Store";
+import type { TouchMode } from "../persist/Store";
 import { MAPS, getMap } from "../data/maps";
+import { prefersTouch } from "../core/Touch";
+
+/** What the on-screen controls do, shown instead of the key list on a phone. */
+const TOUCH_CONTROLS: Array<[string, string]> = [
+  ["Move", "Left thumb"],
+  ["Look / aim", "Right thumb"],
+  ["Sprint", "Push to edge"],
+  ["Fire", "FIRE"],
+  ["Aim down sights", "AIM"],
+  ["Reload", "RELOAD"],
+  ["Grenade", "FRAG"],
+  ["Buy / open / rebuild", "USE"],
+  ["Jump", "JUMP"],
+  ["Swap weapon", "SWAP"],
+  ["Toggle view", "3D / 2D"],
+  ["Pause", "II"],
+];
 
 const CONTROLS: Array<[string, string]> = [
   ["Move", "W A S D"],
@@ -55,7 +73,7 @@ export class Menu {
         </div>
       </div>
       <div class="controls">
-        ${CONTROLS.map(([k, v]) => `<div>${k}</div><div class="k">${v}</div>`).join("")}
+        ${(prefersTouch() ? TOUCH_CONTROLS : CONTROLS).map(([k, v]) => `<div>${k}</div><div class="k">${v}</div>`).join("")}
       </div>
       <div class="credit">Phase 2 · ${MAPS.length} maps · perks · The Cache · <a href="./roadmap.html">Roadmap</a> · open-source (MIT)</div>
     `;
@@ -123,6 +141,14 @@ export class PauseMenu {
           <span>Invert look Y</span>
           <input type="checkbox" data-set="invertY">
         </label>
+        <label class="row">
+          <span>On-screen controls</span>
+          <select data-set="touchControls">
+            <option value="auto">Auto</option>
+            <option value="on">Always on</option>
+            <option value="off">Off</option>
+          </select>
+        </label>
       </div>
       <div class="menu-btns">
         <button class="btn" data-resume>Resume</button>
@@ -139,10 +165,10 @@ export class PauseMenu {
       this.syncControls();
     });
 
-    for (const input of this.el.querySelectorAll<HTMLInputElement>("[data-set]")) {
-      input.addEventListener("input", () => {
-        const key = input.dataset.set as "lookSensitivity" | "turnSpeed" | "invertY";
-        updateSettings(key === "invertY" ? { invertY: input.checked } : { [key]: Number(input.value) });
+    for (const el of this.el.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-set]")) {
+      el.addEventListener("input", () => {
+        const key = el.dataset.set as SettingKey;
+        updateSettings(readSetting(key, el));
         this.syncControls();
       });
     }
@@ -151,10 +177,10 @@ export class PauseMenu {
 
   /** Push the live settings back into the widgets (also used after a reset). */
   private syncControls(): void {
-    for (const input of this.el.querySelectorAll<HTMLInputElement>("[data-set]")) {
-      const key = input.dataset.set as "lookSensitivity" | "turnSpeed" | "invertY";
-      if (key === "invertY") input.checked = settings.invertY;
-      else input.value = String(settings[key]);
+    for (const el of this.el.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-set]")) {
+      const key = el.dataset.set as SettingKey;
+      if (key === "invertY") (el as HTMLInputElement).checked = settings.invertY;
+      else el.value = String(settings[key]);
     }
     for (const out of this.el.querySelectorAll<HTMLElement>("[data-out]")) {
       const key = out.dataset.out as "lookSensitivity" | "turnSpeed";
@@ -169,4 +195,13 @@ export class PauseMenu {
   hide(): void {
     this.el.classList.add("hidden");
   }
+}
+
+type SettingKey = "lookSensitivity" | "turnSpeed" | "invertY" | "touchControls";
+
+/** One widget's value as the settings patch it stands for. */
+function readSetting(key: SettingKey, el: HTMLInputElement | HTMLSelectElement): Record<string, unknown> {
+  if (key === "invertY") return { invertY: (el as HTMLInputElement).checked };
+  if (key === "touchControls") return { touchControls: el.value as TouchMode };
+  return { [key]: Number(el.value) };
 }

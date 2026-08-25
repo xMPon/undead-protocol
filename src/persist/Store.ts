@@ -14,9 +14,22 @@ export interface Settings {
   invertY: boolean;
   /** Last map deployed to, so the menu comes back where you left it. */
   mapId: string;
+  /** On-screen controls: follow the device, or force them on/off. */
+  touchControls: TouchMode;
 }
 
-export const DEFAULT_SETTINGS: Settings = { lookSensitivity: 1, turnSpeed: 1, invertY: false, mapId: "blacksite" };
+/** `auto` reads the device; the other two are the player overriding it. */
+export type TouchMode = "auto" | "on" | "off";
+
+const TOUCH_MODES: TouchMode[] = ["auto", "on", "off"];
+
+export const DEFAULT_SETTINGS: Settings = {
+  lookSensitivity: 1,
+  turnSpeed: 1,
+  invertY: false,
+  mapId: "blacksite",
+  touchControls: "auto",
+};
 
 const clampNum = (v: unknown, lo: number, hi: number, fallback: number): number =>
   typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : fallback;
@@ -47,6 +60,9 @@ export const Store = {
         turnSpeed: clampNum(parsed.turnSpeed, 0.2, 4, DEFAULT_SETTINGS.turnSpeed),
         invertY: parsed.invertY === true,
         mapId: typeof parsed.mapId === "string" ? parsed.mapId : DEFAULT_SETTINGS.mapId,
+        touchControls: TOUCH_MODES.includes(parsed.touchControls as TouchMode)
+          ? (parsed.touchControls as TouchMode)
+          : DEFAULT_SETTINGS.touchControls,
       };
     } catch {
       return { ...DEFAULT_SETTINGS };

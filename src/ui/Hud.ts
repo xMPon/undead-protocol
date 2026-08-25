@@ -76,7 +76,7 @@ export class Hud {
     }).join("");
   }
 
-  update(world: World, view: ViewName, locked: boolean): void {
+  update(world: World, view: ViewName, locked: boolean, touch = false): void {
     const p = world.player;
 
     if (world.rounds.round === 0) {
@@ -132,8 +132,9 @@ export class Hud {
     this.crosshair.classList.toggle("hidden", view !== "3d");
     this.crosshair.classList.toggle("ads", world.ads);
     // Mouse-look needs pointer lock; without it the player can still turn on the
-    // keyboard, so say so rather than leaving them stuck facing one way.
-    this.lookHint.classList.toggle("hidden", !(view === "3d" && !locked));
+    // keyboard, so say so rather than leaving them stuck facing one way. On touch
+    // there is no click to give and no lock to get, so the hint stays down.
+    this.lookHint.classList.toggle("hidden", touch || !(view === "3d" && !locked));
     this.vignette.style.opacity = String(p.damageFlash * 0.7);
   }
 

@@ -22,7 +22,9 @@ html, body { height: 100%; background: var(--bg); color: var(--ink); overflow: h
 canvas { display: block; }
 
 /* The two render surfaces stack; only the active one is shown. */
-#view-3d, #view-2d { position: absolute; inset: 0; }
+/* touch-action: none so a drag on the game is aim, not a page scroll or a
+   pinch-zoom — the overlay above does the same. */
+#view-3d, #view-2d { position: absolute; inset: 0; touch-action: none; }
 #view-2d { background: #05060a; }
 .hidden { display: none !important; }
 
@@ -243,3 +245,99 @@ canvas { display: block; }
 
 /* Aiming down sights tightens the crosshair rather than swapping it out. */
 #crosshair.ads { transform: translate(-50%, -50%) scale(0.55); opacity: 1; }
+
+/* ---- Touch controls ---- */
+
+/* The overlay never scrolls or zooms the page: every gesture inside it is game
+   input, so touch-action is off and the browser's own handling with it. */
+#touch {
+  position: fixed; inset: 0; z-index: 30; touch-action: none;
+  pointer-events: none; user-select: none; -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Two full-height halves catch the thumbs: left steers, right looks. They sit
+   under the buttons, which stop the press from reaching them. */
+.t-zone { position: absolute; top: 0; bottom: 0; width: 50%; pointer-events: auto; }
+.t-left { left: 0; }
+.t-right { right: 0; }
+
+/* Floating sticks: planted wherever the thumb lands, hidden until it does. */
+.t-stick {
+  position: absolute; width: 132px; height: 132px; margin: -66px 0 0 -66px;
+  border-radius: 50%; opacity: 0; transition: opacity 0.12s ease;
+  border: 2px solid rgba(123, 214, 81, 0.28); background: rgba(10, 12, 11, 0.28);
+}
+.t-stick.on { opacity: 1; }
+.t-knob {
+  position: absolute; left: 50%; top: 50%; width: 58px; height: 58px;
+  margin: -29px 0 0 -29px; border-radius: 50%;
+  background: rgba(123, 214, 81, 0.3); border: 2px solid rgba(123, 214, 81, 0.65);
+}
+
+/* Buttons. Sized for a thumb (56px+), and positioned off the safe-area insets so
+   a notch or a home indicator never sits on top of one. */
+.t-btn {
+  position: absolute; pointer-events: auto; font-family: inherit;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; border: 2px solid rgba(123, 214, 81, 0.4);
+  background: rgba(10, 14, 12, 0.5); color: var(--ink);
+  font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+  width: 62px; height: 62px;
+  transition: background 0.08s ease, transform 0.08s ease;
+}
+.t-btn.on { background: rgba(123, 214, 81, 0.32); transform: scale(0.94); }
+
+.t-fire {
+  width: 108px; height: 108px; font-size: 15px;
+  right: calc(22px + env(safe-area-inset-right)); bottom: calc(26px + env(safe-area-inset-bottom));
+  border-color: rgba(226, 59, 59, 0.55); background: rgba(60, 14, 14, 0.5);
+}
+.t-fire.on { background: rgba(226, 59, 59, 0.4); }
+.t-ads    { right: calc(146px + env(safe-area-inset-right)); bottom: calc(30px + env(safe-area-inset-bottom)); }
+.t-reload { right: calc(38px + env(safe-area-inset-right)); bottom: calc(146px + env(safe-area-inset-bottom)); }
+.t-frag   { right: calc(150px + env(safe-area-inset-right)); bottom: calc(112px + env(safe-area-inset-bottom)); }
+.t-jump   { right: calc(126px + env(safe-area-inset-right)); bottom: calc(194px + env(safe-area-inset-bottom)); }
+/* USE sits on the left, under the movement thumb — you buy while walking up. */
+.t-use {
+  left: calc(24px + env(safe-area-inset-left)); bottom: calc(26px + env(safe-area-inset-bottom));
+  width: 78px; height: 78px; border-color: rgba(255, 180, 58, 0.5);
+}
+.t-swap { left: calc(112px + env(safe-area-inset-left)); bottom: calc(120px + env(safe-area-inset-bottom)); width: 56px; height: 56px; }
+.t-view { right: calc(22px + env(safe-area-inset-right)); top: calc(76px + env(safe-area-inset-top)); width: 52px; height: 52px; font-size: 13px; }
+.t-pause { left: calc(22px + env(safe-area-inset-left)); top: calc(22px + env(safe-area-inset-top)); width: 52px; height: 52px; font-size: 16px; }
+
+/* ---- Small screens: the menu has to fit before the game can be played ---- */
+@media (max-width: 760px), (max-height: 560px) {
+  .overlay { overflow-y: auto; justify-content: flex-start; padding: 24px 14px 40px; }
+  .overlay h1 { font-size: clamp(34px, 11vw, 60px); letter-spacing: 6px; }
+  .map-picker { margin-top: 18px; gap: 8px; }
+  .map-card { width: 100%; max-width: 360px; }
+  .menu-btns { margin-top: 24px; width: 100%; max-width: 360px; }
+  .controls { margin-top: 22px; font-size: 13px; gap: 4px 16px; }
+  .credit { position: static; margin-top: 22px; }
+  .settings { width: 100%; max-width: 360px; }
+
+  /* HUD, tightened so the touch buttons and the readouts are not fighting. */
+  .hud-points { top: calc(18px + env(safe-area-inset-top)); left: 86px; font-size: 22px; }
+  .hud-round { top: calc(14px + env(safe-area-inset-top)); }
+  .hud-round .rnum { font-size: 38px; }
+  .hud-health { left: calc(20px + env(safe-area-inset-left)); bottom: calc(118px + env(safe-area-inset-bottom)); width: 180px; }
+  .hud-weapon { right: calc(20px + env(safe-area-inset-right)); bottom: calc(150px + env(safe-area-inset-bottom)); }
+  .hud-weapon .wammo { font-size: 30px; }
+  .hud-prompt { bottom: calc(210px + env(safe-area-inset-bottom)); font-size: 14px; max-width: 78vw; }
+  .hud-view-tag { display: none; }
+}
+
+/* A pointer-lock crosshair is meaningless on a touchscreen, but the aim point
+   still is: keep it, just quieter. */
+@media (pointer: coarse) {
+  #crosshair { opacity: 0.55; }
+}
+
+/* The settings select, matching the range/checkbox styling around it. */
+.settings select {
+  font-family: inherit; font-size: 13px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--ink); background: rgba(12, 14, 13, 0.9);
+  border: 1px solid var(--panel-edge); border-radius: 3px; padding: 5px 8px; cursor: pointer;
+}
