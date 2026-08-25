@@ -13,11 +13,16 @@
 | Tidewater | draft | pass | **no** | **no** | **no** |
 | Deepcut | draft | pass | **no** | **no** | **no** |
 
+> **Phase 2 added fixtures to all five maps, Blacksite included.** Perk
+> machines, Cache sites and supply crates pass the same automated placement
+> checks as everything else, but no one has walked up to one in 3D. Blacksite's
+> "seen in 3D / played" ticks below cover its Phase 1 layout, not its machines.
+
 ---
 
 ## What the automated checks actually prove
 
-`tests/map.test.ts` runs 31 checks against every map in `data/maps.ts`. They
+`tests/map.test.ts` runs 19 checks against every map in `data/maps.ts`. They
 prove the **data is coherent**:
 
 - every prop is inside `bounds`, and none is buried in a wall
@@ -27,6 +32,9 @@ prove the **data is coherent**:
 - no barrier breach route is obstructed by a prop
 - every region a door unlocks has at least one barrier and one wall-buy
 - decals are in bounds, below the wall line, and carry text where the kind needs it
+- every perk machine, cache site and supply crate is in bounds, inside the player
+  cage, clear of walls, doorways, solid props and each other, off every barrier's
+  breach route, and standable-next-to once the compound is open
 - a real `FlowField` can path from every active barrier to the player, before
   *and* after the doors are opened
 - the map loads into the simulation and runs headlessly until a zombie closes on
