@@ -46,6 +46,15 @@ world.onDenied = () => sound.denied();
 world.onDoor = () => sound.door();
 world.onRoundStart = () => sound.roundStart();
 world.onDeath = () => sound.death();
+world.onPerk = () => sound.perk();
+world.onCacheOpen = () => sound.cacheOpen();
+world.onCacheReveal = () => sound.cacheReveal();
+world.onCacheMove = () => sound.cacheMove();
+world.onThrow = () => sound.throwGrenade();
+world.onExplosion = () => sound.explosion();
+world.onBoardTear = () => sound.board();
+world.onRepair = () => sound.repair();
+world.onRevive = () => sound.revive();
 
 // ---- state transitions ----
 function startGame(view: ViewName, mapId: string = world.def.id): void {

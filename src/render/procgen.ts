@@ -1072,6 +1072,180 @@ export function makeDoorMesh(width: number, height: number, thickness: number, n
   return g;
 }
 
+// ---------- phase 2 fixtures ----------
+
+/**
+ * A perk machine: a lit cabinet with a glowing face, a livery band in the perk's
+ * colour, and its name over the top. Its front is local +x, matching props, so
+ * the map's `rot` points it into the room the same way everything else does.
+ */
+export function makePerkMachineMesh(color: number, name: string, short: string, cost: number): THREE.Group {
+  const g = new THREE.Group();
+  const shell = metalMaterial(0x2b2f33, 0.55);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 2.1, 1.1), shell);
+  body.position.y = 1.05;
+  body.castShadow = true;
+  body.receiveShadow = true;
+  g.add(body);
+
+  // Glowing display face on the +x side, dimmed and brightened by the light rig.
+  const face = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.8, 1.15),
+    new THREE.MeshStandardMaterial({
+      map: perkFaceTexture(color, short),
+      emissive: color,
+      emissiveIntensity: 0.9,
+      roughness: 0.4,
+      transparent: false,
+    }),
+  );
+  face.name = "glow";
+  face.position.set(0.46, 1.28, 0);
+  face.rotation.y = Math.PI / 2;
+  g.add(face);
+
+  // Kick plate and a colour band round the shoulders, so it reads from behind too.
+  const band = new THREE.Mesh(
+    new THREE.BoxGeometry(0.94, 0.16, 1.14),
+    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.7, roughness: 0.5 }),
+  );
+  band.position.y = 1.98;
+  g.add(band);
+  const foot = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.12, 1.2), metalMaterial(0x1a1d20, 0.7));
+  foot.position.y = 0.06;
+  foot.receiveShadow = true;
+  g.add(foot);
+
+  const label = makeLabelSprite(name.toUpperCase(), `$${cost}`);
+  label.position.set(0, 2.55, 0);
+  g.add(label);
+  return g;
+}
+
+const _perkFaces = new Map<string, THREE.Texture>();
+/** The cabinet's front: a big initial over a wash of the perk's colour. */
+function perkFaceTexture(color: number, short: string): THREE.Texture {
+  const key = `${color}:${short}`;
+  const hit = _perkFaces.get(key);
+  if (hit) return hit;
+  const hex = "#" + (color & 0xffffff).toString(16).padStart(6, "0");
+  const tex = albedo(128, (g, size) => {
+    const grad = g.createLinearGradient(0, 0, 0, size);
+    grad.addColorStop(0, hex);
+    grad.addColorStop(1, "#0d0f11");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, size, size);
+    g.strokeStyle = "rgba(0,0,0,0.5)";
+    g.lineWidth = 6;
+    g.strokeRect(3, 3, size - 6, size - 6);
+    g.fillStyle = "#0a0b0c";
+    g.textAlign = "center";
+    g.font = "bold 76px Rajdhani, sans-serif";
+    g.fillText(short, size / 2, size * 0.66);
+  });
+  _perkFaces.set(key, tex);
+  return tex;
+}
+
+/**
+ * The Cache: a strapped crate whose lid lifts. `lid` is a pivot the renderer
+ * rotates open, and `beam` is the shaft of light that only shows while it is.
+ */
+export function makeCacheMesh(): THREE.Group {
+  const g = new THREE.Group();
+  const timber = crateMaterial(0xb08a56);
+  const iron = metalMaterial(0x3a3d40, 0.6);
+
+  const box = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.8, 1.24), timber);
+  box.position.y = 0.4;
+  box.castShadow = true;
+  box.receiveShadow = true;
+  g.add(box);
+  for (const dx of [-0.62, 0.62]) {
+    const strap = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.86, 1.3), iron);
+    strap.position.set(dx, 0.4, 0);
+    g.add(strap);
+  }
+
+  // Lid hinged along the back edge (−z), so it opens toward the player.
+  const lid = new THREE.Group();
+  lid.name = "lid";
+  lid.position.set(0, 0.8, -0.62);
+  const lidMesh = new THREE.Mesh(new THREE.BoxGeometry(1.84, 0.12, 1.28), timber);
+  lidMesh.position.set(0, 0.06, 0.62);
+  lidMesh.castShadow = true;
+  lid.add(lidMesh);
+  g.add(lid);
+
+  const beam = makeLightCone(1.1, 0.55, 3.2, 0xffd166, 0.14);
+  beam.name = "beam";
+  beam.position.y = 2.4;
+  beam.visible = false;
+  g.add(beam);
+
+  const glow = new THREE.Mesh(
+    new THREE.BoxGeometry(1.6, 0.05, 1.05),
+    new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xffd166, emissiveIntensity: 1.4 }),
+  );
+  glow.name = "glow";
+  glow.position.y = 0.79;
+  g.add(glow);
+  return g;
+}
+
+/** A grenade resupply crate: low, olive, stencilled. */
+export function makeSupplyMesh(): THREE.Group {
+  const g = new THREE.Group();
+  const olive = new THREE.MeshStandardMaterial({ color: 0x4a5335, roughness: 0.85, metalness: 0.1 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.62, 0.9), olive);
+  body.position.y = 0.31;
+  body.castShadow = true;
+  body.receiveShadow = true;
+  g.add(body);
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(1.26, 0.1, 0.96), metalMaterial(0x39412a, 0.7));
+  lid.position.y = 0.66;
+  g.add(lid);
+  const stripe = new THREE.Mesh(
+    new THREE.BoxGeometry(1.22, 0.1, 0.02),
+    new THREE.MeshStandardMaterial({ color: 0xd8b32a, emissive: 0x3a2c06, roughness: 0.7 }),
+  );
+  stripe.position.set(0, 0.36, 0.46);
+  g.add(stripe);
+  return g;
+}
+
+/** A single frag grenade — a body the renderer spins as it flies. */
+export function makeGrenadeMesh(): THREE.Mesh {
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.16, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0x3d4a2c, roughness: 0.7, metalness: 0.3 }),
+  );
+  mesh.castShadow = true;
+  mesh.visible = false;
+  return mesh;
+}
+
+/**
+ * One plank on a barrier. The renderer builds `MAX_BOARDS` of them per barrier
+ * and hides them as they are torn off, so a stripped window reads at a glance.
+ */
+export function makeBoardMesh(): THREE.Mesh {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.24, 0.12), crateMaterial(0xa07a44));
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+/** The flash of a detonation: a shell the renderer scales up and fades out. */
+export function makeExplosionMesh(): THREE.Mesh {
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 14, 10),
+    new THREE.MeshBasicMaterial({ color: 0xffb340, transparent: true, opacity: 0, depthWrite: false }),
+  );
+  mesh.visible = false;
+  return mesh;
+}
+
 // ---------- characters ----------
 
 /**
