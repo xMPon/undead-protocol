@@ -187,6 +187,9 @@ canvas { display: block; }
 .gameover-best { color: var(--muted); letter-spacing: 2px; margin-top: 4px; }
 
 .credit { position: absolute; bottom: 16px; color: #445; font-size: 12px; letter-spacing: 2px; }
+/* The menu is pointer-events: none as an overlay, so its one link has to opt in. */
+.credit a { color: var(--muted); text-decoration: none; pointer-events: auto; }
+.credit a:hover { color: var(--toxic); text-decoration: underline; }
 
 /* ---- Phase 2 HUD: perks, frags, The Cache notice, being down ---- */
 

@@ -57,7 +57,7 @@ export class Menu {
       <div class="controls">
         ${CONTROLS.map(([k, v]) => `<div>${k}</div><div class="k">${v}</div>`).join("")}
       </div>
-      <div class="credit">Phase 2 · ${MAPS.length} maps · perks · The Cache · open-source (MIT)</div>
+      <div class="credit">Phase 2 · ${MAPS.length} maps · perks · The Cache · <a href="./roadmap.html">Roadmap</a> · open-source (MIT)</div>
     `;
     parent.appendChild(this.el);
 

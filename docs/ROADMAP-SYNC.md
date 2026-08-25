@@ -1,7 +1,10 @@
 # Roadmap sync automation
 
 `docs/ROADMAP_ITEMS.json` is the repository source of truth for Project roadmap
-entries.
+entries **and for the public roadmap page** at
+[`/roadmap.html`](../roadmap.html), which imports it at build time. One file,
+three renderings: the GitHub issues, the Project board, and the page on the
+site.
 
 ## How it works
 
@@ -18,6 +21,21 @@ entries.
 
 Roadmap issues are tracked with a hidden marker in each issue body:
 `<!-- undead-roadmap-id:<id> -->`.
+
+## The item shape
+
+`id`, `title`, `phase`, `status` (`todo` / `in_progress` / `done`) and `details`
+are required — `parseRoadmapItems` rejects anything else, and
+`tests/roadmap-page.test.ts` runs that validator against the real file.
+
+**`id` is a stable contract.** It is the link between an item and its issue:
+rename one and the sync closes the old issue and opens a new one. Append and
+re-scope; do not rename.
+
+Any other field is **presentation-only** — the sync reads the five above and
+drops the rest. `size` (`S` / `M` / `L`) is used by the roadmap page for rough
+effort and never reaches GitHub. `phase` must stay one of the phases the page
+has framing for (`Phase 1`–`Phase 5`, `Backlog`), which is enforced by test.
 
 ## Required repository configuration
 

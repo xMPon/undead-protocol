@@ -10,7 +10,7 @@ Vite. Plain TS game loop — no React, no game engine. **3D third-person with a
 |---|---|
 | `npm run dev` | Vite dev server at `http://localhost:5173` |
 | `npm test` | vitest unit + headless-sim tests (`tests/`) |
-| `npm run build` | typecheck (`tsc --noEmit`) + production build |
+| `npm run build` | typecheck (`tsc --noEmit`) + production build of **both** pages (game + roadmap) |
 
 ## The one big idea
 
@@ -66,6 +66,7 @@ changes nothing about game state.
 | `ui/GameOver.ts` | death screen: round reached, best, restart/menu |
 | `persist/Store.ts` | localStorage best-round high score + persisted control `settings` (look sensitivity, turn speed, invert Y) |
 | `main.ts` | bootstrap + menu→playing→paused/over state machine; `window.__up` |
+| `roadmap/main.ts` | the **public roadmap page** (`/roadmap.html`), rendered at build time from `docs/ROADMAP_ITEMS.json` — the same file that syncs the GitHub Project |
 
 ## Conventions
 
@@ -141,6 +142,13 @@ most kinds. Props face **local +x along `rot`** in both views; keep new meshes t
 that convention.
 
 ## Roadmap
+
+The backlog lives in [`docs/ROADMAP_ITEMS.json`](docs/ROADMAP_ITEMS.json) and is
+published two ways from that one file: a GitHub issue + Project card per item
+(see [`docs/ROADMAP-SYNC.md`](docs/ROADMAP-SYNC.md)) and the public page at
+[xmpon.github.io/undead-protocol/roadmap.html](https://xmpon.github.io/undead-protocol/roadmap.html).
+**Add work there, not only here** — this section is the narrative, that file is
+the list.
 
 - **Phase 1 — feature-complete, map roster under audit:** main menu; map "Blacksite"; dual 3D/2D
   renderers; movement + hitscan shooting + reload; 4 weapons (M9 + PDW-57 /

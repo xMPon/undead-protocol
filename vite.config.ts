@@ -5,4 +5,10 @@ import { defineConfig } from "vite";
 export default defineConfig({
   base: "/undead-protocol/",
   server: { port: 5173 },
+  build: {
+    // Two pages: the game, and the roadmap built from docs/ROADMAP_ITEMS.json.
+    rollupOptions: {
+      input: { main: "index.html", roadmap: "roadmap.html" },
+    },
+  },
 });

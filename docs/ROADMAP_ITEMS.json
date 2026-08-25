@@ -4,6 +4,7 @@
     "title": "Phase 1 base game foundation",
     "phase": "Phase 1",
     "status": "done",
+    "size": "L",
     "details": "Main menu, Blacksite map, dual 3D/2D renderers, core weapons, round system, economy, HUD, game over flow, and procedural audio are complete."
   },
   {
@@ -11,6 +12,7 @@
     "title": "Environment detail pass for Blacksite",
     "phase": "Phase 1",
     "status": "done",
+    "size": "M",
     "details": "Add sixteen prop kinds (fence, jersey barrier, pipe, pallet, dumpster, tank, generator, guard tower, comms mast, floodlight, fire barrel, wreck, rubble, dead tree, cone, sign, puddle), pass-through decor props, volumetric light shafts, lamp flicker, animated fire/smoke/dust/stars, and map data-integrity tests. Dresses Blacksite as a working compound without changing how it plays."
   },
   {
@@ -18,6 +20,7 @@
     "title": "Add substation and cold store regions to Blacksite",
     "phase": "Phase 1",
     "status": "done",
+    "size": "M",
     "details": "Extend Blacksite from two regions to four: a substation opening off the spawn yard for 1000 points and a cold store behind the vault for 1250, each with its own barriers, terrain, dressing and wall-buy (Lancer-7 and Havoc-9). Makes playBounds a union of per-wing rects, names doors in the HUD prompt, renders a mesh per door, and pools the 3D point lights so room count no longer drives GPU cost."
   },
   {
@@ -25,6 +28,7 @@
     "title": "Fix movement, camera, and collision feel",
     "phase": "Phase 1",
     "status": "done",
+    "size": "M",
     "details": "Address playtest feedback: rotated props now collide as oriented boxes and round props as discs so bounding-box corners stop acting as invisible walls; multi-part props such as the guard tower collide as their legs; the chase camera pulls in and fades the player when geometry is behind them; keyboard turning (Q/E and arrows) plus persisted look-sensitivity, turn-speed and invert-Y settings in the pause menu make the game playable on a trackpad. Also fixes a player cage whose wing rects did not overlap, which made the substation and cold store doors impassable."
   },
   {
@@ -32,6 +36,7 @@
     "title": "Animate characters and add scene storytelling detail",
     "phase": "Phase 1",
     "status": "done",
+    "size": "L",
     "details": "Replace the capsule zombies and player with jointed rigs the renderer animates: walk cycles driven by distance travelled, zombie lurch/grab/collapse, per-body variation in height, skin, clothing and missing limbs, blood spray on hits, and a player weapon model derived from weapon stats with recoil and muzzle flash. Adds a map decals layer (graffiti tags, sprayed stencils, tally marks, biohazard symbols, blood and scorch stains), walk-in blockhouse shelters, and real door models with keypads and price signs. Escape now reliably pauses by watching for pointer-lock loss, since browsers consume that keydown."
   },
   {
@@ -39,6 +44,7 @@
     "title": "Ship map-select menu",
     "phase": "Phase 1",
     "status": "done",
+    "size": "S",
     "details": "Map-select menu on the main screen, backed by a MAPS roster in data/maps.ts. World.loadMap swaps the loaded map in place so wired callbacks survive, and the 3D renderer tears down and rebuilds its map scene. The chosen map persists between sessions."
   },
   {
@@ -46,62 +52,255 @@
     "title": "Build four additional Phase 1 maps",
     "phase": "Phase 1",
     "status": "in_progress",
-    "details": "Four more maps beside Blacksite, each built around a different topology and its own terrain system rather than a reskin of the same yards: Coldstep (a ring around a sealed hangar, wind drifts, a twelve-unit whiteout, barriers on all four walls), Dustline (a tight chain of four small rooms in an L, each 1.2 units lower than the last, near-total darkness lit by fire barrels), Tidewater (an open pier with no perimeter at all, decking over a water plane, barriers along both long edges) and Deepcut (a hub with three spokes at four different working levels, spawning at the bottom of the bowl). All five run the same data-integrity and headless play tests. NOT FINISHED: all four are drafts. They pass the 31 automated data-integrity checks, but none has been viewed in 3D, played, or balanced. Outstanding work and per-map risks are tracked in docs/MAP-AUDIT.md; the item closes when every map in that table reads final."
+    "size": "L",
+    "details": "Four more maps beside Blacksite, each built around a different topology and its own terrain system rather than a reskin of the same yards: Coldstep (a ring around a sealed hangar, wind drifts, a twelve-unit whiteout, barriers on all four walls), Dustline (a tight chain of four small rooms in an L, each 1.2 units lower than the last, near-total darkness lit by fire barrels), Tidewater (an open pier with no perimeter at all, decking over a water plane, barriers along both long edges) and Deepcut (a hub with three spokes at four different working levels, spawning at the bottom of the bowl). All five run the same data-integrity and headless play tests. NOT FINISHED: all four are drafts. They pass the automated data-integrity checks, but none has been viewed in 3D, played, or balanced. Outstanding work and per-map risks are tracked in docs/MAP-AUDIT.md; the item closes when every map in that table reads final."
   },
   {
     "id": "phase-1-map-audit",
     "title": "Audit and finish the four draft maps",
     "phase": "Phase 1",
     "status": "todo",
+    "size": "M",
     "details": "Play and visually review Coldstep, Dustline, Tidewater and Deepcut, which currently ship as drafts. Covers props and walls on the steeper terrain of the new maps, box-vs-box prop overlap (only bounding-box tested), the point-light pool on unfamiliar fixture layouts, the 2D view on each map, and a balance pass on door costs, wall-buy placement, barrier counts and round pacing. Specific per-map risks are listed in docs/MAP-AUDIT.md."
   },
   {
     "id": "phase-2-perks-and-cache",
     "title": "Add perks and The Cache mystery box",
     "phase": "Phase 2",
-    "status": "in_progress",
-    "details": "Ironhide, Rapid Rounds, Fast Hands and Second Wind are implemented as pure effects in sim/Perks.ts, bought from machines placed in every region of all five maps; Second Wind downs the player for 4.5 seconds and revives them on half health instead of ending the run. The Cache is a seedable state machine (idle/spinning/offering/closing) costing 950 a draw, with two box-only weapons (Arclight VX, Hailstorm) and relocation to another live site after 4-7 draws. NOT FINISHED: neither system has been played or seen in 3D. Closes with the Phase 2 shakedown."
+    "status": "done",
+    "size": "L",
+    "details": "Ironhide, Rapid Rounds, Fast Hands and Second Wind implemented as pure effects in sim/Perks.ts, bought from machines placed in every region of all five maps; Second Wind downs the player for 4.5 seconds and revives them on half health instead of ending the run. The Cache is a seedable state machine (idle/spinning/offering/closing) costing 950 a draw, with two box-only weapons (Arclight VX, Hailstorm) and relocation to another live site after 4-7 draws. Shipped and confirmed working in play; remaining balance questions are tracked under the Phase 2 shakedown."
   },
   {
     "id": "phase-2-grenades-ads-and-regions",
-    "title": "Add grenades, ADS, and map progression extensions",
+    "title": "Add grenades, ADS, and board-up barriers",
     "phase": "Phase 2",
-    "status": "in_progress",
-    "details": "Grenades (fused, arcing, bouncing, distance falloff, line-of-sight so frag does not cross walls, self-damage, and 250-point resupply crates), aim-down-sights on right mouse (spread x0.3, walk x0.55, FOV 70->46 with the camera pulled in), and board-up barriers (four planks each; zombies tear one at a time before they can climb in, the player rebuilds at +10 a plank). Map progression was already four regions per map in Phase 1, so this item now covers only the mechanics. NOT FINISHED: unplayed, same as the perks item."
+    "status": "done",
+    "size": "L",
+    "details": "Grenades (fused, arcing, bouncing, distance falloff, line-of-sight so frag does not cross walls, self-damage, and 250-point resupply crates), aim-down-sights on right mouse (spread x0.3, walk x0.55, FOV 70->46 with the camera pulled in), and board-up barriers (four planks each; zombies tear one at a time before they can climb in, the player rebuilds at +10 a plank). Map progression was already four regions per map in Phase 1, so this item covers the mechanics only."
   },
   {
     "id": "phase-2-shakedown",
-    "title": "Play-test the Phase 2 systems",
+    "title": "Play-test and balance the Phase 2 systems",
     "phase": "Phase 2",
-    "status": "todo",
-    "details": "Play perks, The Cache, grenades, ADS and board-up barriers, none of which has been seen in 3D. Covers: whether perk cabinets read as usable and are reachable on the steeper maps; whether The Cache's lid, beam and turning weapon land, and whether relocation is legible; grenade arc, bounce and blast feel, and whether self-damage is too punishing; ADS FOV/camera easing; whether four planks per barrier makes early rounds drag or gives the repair economy real weight; and a balance pass on perk costs, the 950 draw, and the +10 a plank rebuild income."
+    "status": "in_progress",
+    "size": "M",
+    "details": "First play session (2026-08-26) confirms the Phase 2 systems work and feel good in the browser build. Outstanding: a deliberate balance pass rather than a smoke test. Are perk costs right against the 950 Cache draw? Does +10 a plank make rebuilding worth doing past the early rounds, or is it free money? Is four planks per barrier too slow in round 1 and irrelevant by round 10? Is grenade self-damage too punishing, and is the Arclight VX too strong for a 950 roll? Also check the perk cabinets read as usable on the steeper draft maps, and that Cache relocation is legible when it happens off-screen."
   },
   {
-    "id": "phase-3-forge-and-dogs",
-    "title": "Add The Forge upgrades and Feral-Hound rounds",
+    "id": "phase-3-power-switch",
+    "title": "Add the power switch and power-gated machines",
     "phase": "Phase 3",
     "status": "todo",
-    "details": "Implement weapon upgrades at The Forge and special dog/Feral-Hound rounds."
+    "size": "M",
+    "details": "A single map-wide power switch, sited deep in a paid region, that gates the perk machines, The Forge and any powered traps until it is thrown. Needs a switch fixture and interaction, a powered flag on World the renderers read (dark machines, dead signage, no perk purchases before it), a map field for switch placement, and the audio/lighting moment when the compound comes to life. This is the spine the rest of Phase 3 hangs off: it turns the map into a route rather than a set of rooms."
   },
   {
-    "id": "phase-3-power-systems-second-map",
-    "title": "Add power systems, power-ups, and second map",
+    "id": "phase-3-forge",
+    "title": "Add The Forge weapon upgrade station",
     "phase": "Phase 3",
     "status": "todo",
-    "details": "Implement power-ups (Resupply/Executioner/Purge/Bonus/Fortify) and the power switch. The second map shipped in Phase 1 \u2014 the roster is five maps."
+    "size": "L",
+    "details": "A points sink that upgrades the carried weapon in place: more damage, a bigger magazine and reserve, and a visibly reworked model. Needs an upgraded flag on WeaponInstance, a damage/ammo multiplier the sim reads, a station fixture with an insert-and-collect cycle like The Cache, per-map placement behind the power switch, and a rename convention for upgraded guns that stays inside the project's original-names rule."
   },
   {
-    "id": "phase-4-boss-content",
-    "title": "Add boss rounds, traps, and mini-quests",
+    "id": "phase-3-hound-rounds",
+    "title": "Add Feral Hound rounds",
+    "phase": "Phase 3",
+    "status": "todo",
+    "size": "M",
+    "details": "A special round type every few rounds: fast, low-health quadrupeds that spawn from fog rather than barriers, ignore the board-up gate entirely, and end the round when the last one drops. Needs a second enemy archetype in the sim (speed, health curve, attack cadence), a spawn source that is not a barrier, a four-legged rig in procgen, and round-manager support for round types so bosses can reuse it later."
+  },
+  {
+    "id": "phase-3-powerups",
+    "title": "Add power-up drops",
+    "phase": "Phase 3",
+    "status": "todo",
+    "size": "M",
+    "details": "Resupply (full ammo), Executioner (a window where every hit kills), Purge (clears the map), Bonus (a points windfall) and Fortify (rebuilds every barrier). Dropped on a small chance per kill, they sit on the ground with a timer, are picked up by walking over them, and run for a fixed duration with HUD feedback. Needs a drop entity in the sim, a spawn-chance rule that cannot be farmed, timed global effects on World, and pickup meshes in both renderers."
+  },
+  {
+    "id": "phase-3-zombie-variety",
+    "title": "Add zombie variety beyond the walker",
+    "phase": "Phase 3",
+    "status": "todo",
+    "size": "M",
+    "details": "One walker archetype stops being interesting somewhere around round 15. Add sprinters that appear as a share of each round's spawn from the mid rounds on, and crawlers that keep coming after their legs go, with the per-round mix driven by the round manager rather than hardcoded. Needs archetype data on the zombie, mix rules in Round.ts, and rig/animation variants in the renderer."
+  },
+  {
+    "id": "phase-4-boss-rounds",
+    "title": "Add boss rounds",
     "phase": "Phase 4",
     "status": "todo",
-    "details": "Introduce boss encounters and objective-style side content."
+    "size": "L",
+    "details": "A scripted heavy every ten rounds: a large, slow, high-health enemy with a telegraphed attack, its own health bar in the HUD, and a reward for dropping it. Builds on the round-type support from hound rounds. Needs a boss archetype, an arena-aware spawn, a wind-up/attack cycle the player can read and dodge, and a rig big enough to be worth looking at."
   },
   {
-    "id": "phase-5-endgame-polish",
-    "title": "Add easter eggs, settings, and leaderboards",
+    "id": "phase-4-traps",
+    "title": "Add buyable map traps",
+    "phase": "Phase 4",
+    "status": "todo",
+    "size": "M",
+    "details": "Points-activated traps wired into the map: an electrified floor panel, a flame vent in a corridor, a spinning blade in a doorway. Each has a cost, an active window and a cooldown, kills what walks through it while it runs, and pays the player for the kills. Needs a trap fixture and map field, a trap state machine in the sim, damage volumes, and the effects and audio that make one firing unmissable."
+  },
+  {
+    "id": "phase-4-mini-quests",
+    "title": "Add mini-quests",
+    "phase": "Phase 4",
+    "status": "todo",
+    "size": "M",
+    "details": "Small optional objectives inside a run - power three generators before round 12, carry a canister across the compound, hold a room for sixty seconds - that pay out in points, a free perk, or a Forge charge. Needs an objective state machine, HUD objective text, and per-map objective data. The groundwork for the Phase 5 multi-step easter egg."
+  },
+  {
+    "id": "phase-5-easter-eggs",
+    "title": "Add musical and multi-step easter eggs",
     "phase": "Phase 5",
     "status": "todo",
-    "details": "Deliver musical/main-quest easter eggs, difficulty/settings controls, and leaderboard support."
+    "size": "L",
+    "details": "A hidden three-object interaction per map that starts a procedural music cue, and one long multi-step quest chained across regions with a real reward at the end. Needs hidden interactables that do not show a HUD prompt, persistent per-run quest state, and a procedural music track built from the existing WebAudio kit rather than an audio file."
+  },
+  {
+    "id": "phase-5-difficulty-settings",
+    "title": "Add difficulty options",
+    "phase": "Phase 5",
+    "status": "todo",
+    "size": "S",
+    "details": "Selectable difficulty at deploy time, changing zombie health scaling, spawn cadence, the on-map cap and starting points, with the choice persisted and shown on the game-over screen so scores stay comparable. Round.ts already exposes the curves as pure functions, so this is mostly menu and persistence work."
+  },
+  {
+    "id": "phase-5-leaderboards",
+    "title": "Add leaderboards",
+    "phase": "Phase 5",
+    "status": "todo",
+    "size": "M",
+    "details": "Per-map, per-difficulty high score tables. Decide first whether this stays local (a richer local table, no backend, no privacy surface) or goes online, which needs a hosted score endpoint, anti-cheat thinking about a client-authoritative browser game, and a name entry flow. Local is the honest default for a static Pages site."
+  },
+  {
+    "id": "backlog-touch-controls",
+    "title": "Make the game playable on touch devices",
+    "phase": "Backlog",
+    "status": "todo",
+    "size": "L",
+    "details": "The public Pages link means phones will open it, and right now the game loads and cannot be played: movement, aim and fire are all keyboard/mouse and the 3D view needs pointer lock. Needs an on-screen twin-stick layer feeding the existing Intent (which is already view-independent, so the sim needs no change), touch-friendly HUD hit targets, and a device check that offers the 2D view by default."
+  },
+  {
+    "id": "backlog-audio-settings",
+    "title": "Add volume control and an audio mix pass",
+    "phase": "Backlog",
+    "status": "todo",
+    "size": "S",
+    "details": "Sound has a muted flag and a fixed 0.5 master gain with no way to change either from the UI. Add master volume and mute to the pause menu, persisted through Store, and level the mix while there: gunshots currently sit far above the round sting and the perk jingle."
+  },
+  {
+    "id": "backlog-per-map-high-scores",
+    "title": "Track high scores per map",
+    "phase": "Backlog",
+    "status": "todo",
+    "size": "S",
+    "details": "Store keeps a single best-round value across all five maps, so a good run on Dustline is measured against one on Blacksite. Move to a per-map record, show it on the map-select card and the game-over screen, and migrate the existing single value rather than dropping it."
+  },
+  {
+    "id": "backlog-key-rebinding",
+    "title": "Let players rebind the controls",
+    "phase": "Backlog",
+    "status": "todo",
+    "size": "M",
+    "details": "Key codes are hardcoded in both renderers' buildIntent. Move them to a bindings map in Store, add a rebinding screen to the pause menu, and keep the defaults exactly as they are. Also the point at which non-QWERTY layouts stop being second-class, since the code reads e.code."
+  },
+  {
+    "id": "backlog-accessibility",
+    "title": "Accessibility pass",
+    "phase": "Backlog",
+    "status": "todo",
+    "size": "M",
+    "details": "Colour-blind-safe HUD state (the perk chips, the affordable/unaffordable prompt and the damage vignette all lean on red/green), a HUD scale option for high-resolution displays, a reduced-motion setting that calms the damage vignette and camera shake, and a check that every prompt reads without relying on colour alone."
+  },
+  {
+    "id": "backlog-bundle-split",
+    "title": "Split the bundle and add a loading screen",
+    "phase": "Backlog",
+    "status": "todo",
+    "size": "M",
+    "details": "One 674 KB JS chunk (177 KB gzipped), almost all of it three.js, is downloaded before anything renders - the whole first impression of the public link. Code-split the 3D renderer behind a dynamic import so the menu paints first, add a real loading state, and set a bundle-size budget in CI so this does not creep back."
+  },
+  {
+    "id": "backlog-renderer-quality-presets",
+    "title": "Add renderer quality presets",
+    "phase": "Backlog",
+    "status": "todo",
+    "size": "S",
+    "details": "Shadow maps at 2048, ACES tone mapping, a 14-light pool and full device pixel ratio are a lot to ask of an integrated GPU or a laptop on battery. Add low/medium/high presets in the pause menu (shadows off, smaller shadow map, capped pixel ratio, fewer pooled lights), persisted, defaulting from a quick capability probe."
+  },
+  {
+    "id": "backlog-round-feedback",
+    "title": "Improve round transition feedback",
+    "phase": "Backlog",
+    "status": "todo",
+    "size": "S",
+    "details": "The round banner is the only signal a round changed. Add a wave-cleared moment, a visible intermission countdown so the player knows how long they have to spend points and rebuild, and a kill counter for the round just finished."
+  },
+  {
+    "id": "backlog-weapon-feel",
+    "title": "Weapon feel pass",
+    "phase": "Backlog",
+    "status": "todo",
+    "size": "M",
+    "details": "Every gun currently fires with a fixed spread cone and identical handling. Add per-weapon recoil that climbs while held and settles, hipfire bloom that ADS tightens, a short weapon-switch animation instead of an instant swap, and per-weapon reload timing that the Fast Hands multiplier still respects."
+  },
+  {
+    "id": "backlog-sixth-map",
+    "title": "Build a map designed around the Phase 2 fixtures",
+    "phase": "Backlog",
+    "status": "todo",
+    "size": "L",
+    "details": "The five existing maps had perk machines, cache sites and supply crates fitted into layouts that predate them. Build one map where the fixtures are the level design: a perk you have to hold a room to reach, a Cache site that is a genuine risk to use, and barriers positioned so rebuilding is a real tactic rather than a nicety."
+  },
+  {
+    "id": "backlog-economy-tuning",
+    "title": "Tune the points economy end to end",
+    "phase": "Backlog",
+    "status": "todo",
+    "size": "M",
+    "details": "Hit and kill payouts, wall-buy and ammo costs, door prices, perk costs, the 950 Cache draw, the 250 resupply and the +10 rebuild were each set in isolation across three phases. Model a run end to end - what a competent player has banked by round 5, 10 and 20 - and adjust so every round has a meaningful choice rather than an obvious one."
+  },
+  {
+    "id": "backlog-landing-page",
+    "title": "Give the Pages site a landing page",
+    "phase": "Backlog",
+    "status": "todo",
+    "size": "S",
+    "details": "The public URL drops straight into the game with no context: no explanation of what it is, no controls until you reach the menu, nothing for someone arriving from a link. Add a short landing page with a screenshot, the controls, the pitch and links to the repo and the roadmap - without putting a click between a returning player and the game."
+  },
+  {
+    "id": "backlog-public-roadmap-page",
+    "title": "Publish the roadmap on the Pages site",
+    "phase": "Backlog",
+    "status": "done",
+    "size": "S",
+    "details": "A public roadmap page at /roadmap.html, built from docs/ROADMAP_ITEMS.json at build time so it can never drift from the GitHub Project the same file syncs, grouped by phase with status and size, and linked from the main menu."
+  },
+  {
+    "id": "backlog-ci-pr-checks",
+    "title": "Run tests on pull requests",
+    "phase": "Backlog",
+    "status": "todo",
+    "size": "S",
+    "details": "Tests only run inside the Pages deploy on a push to main, so a broken branch is not caught until it is already merged. Add a CI workflow running typecheck, tests and build on pull requests and pushes to any branch."
+  },
+  {
+    "id": "backlog-action-versions",
+    "title": "Update the GitHub Actions versions",
+    "phase": "Backlog",
+    "status": "todo",
+    "size": "S",
+    "details": "Both workflows warn on every run: actions/checkout@v4, actions/setup-node@v4, actions/configure-pages@v5 and actions/upload-artifact@v4 target Node 20, which the runners now force onto Node 24. Move to the current major versions before a runner stops being forgiving about it."
+  },
+  {
+    "id": "backlog-hud-font",
+    "title": "Load the HUD font or drop it",
+    "phase": "Backlog",
+    "status": "todo",
+    "size": "S",
+    "details": "style.css asks for Rajdhani throughout and nothing ever loads it, so the HUD and menus fall back to Segoe UI and the intended look never appears. Either load the face (an external request, against the project's no-asset-files habit) or design the fallback stack deliberately."
   }
 ]
