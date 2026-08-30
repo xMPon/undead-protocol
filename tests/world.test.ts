@@ -66,6 +66,42 @@ describe("World — rounds & spawning", () => {
     }
     expect(sawZombie).toBe(true);
   });
+
+  it("reports the wave cleared with the round's kill tally", () => {
+    const w = new World();
+    const idle = emptyIntent();
+    let ended: [number, number] | null = null;
+    w.onRoundEnd = (round, kills) => {
+      ended = [round, kills];
+    };
+
+    step(w, FIRST_ROUND_DELAY + 0.1, idle);
+    expect(w.rounds.round).toBe(1);
+
+    // Clear the wave by hand: drain the spawn queue, clear whatever the spawner
+    // already breached, and leave one zombie standing in the line of fire.
+    while (w.rounds.toSpawn > 0) w.rounds.markSpawned();
+    w.zombies = [];
+    const z = new Zombie({ x: 5, y: 0 }, 30, 0);
+    w.zombies.push(z);
+    w.update(DT, { ...emptyIntent(), aim: 0, firing: true });
+    expect(w.roundKills).toBe(1);
+    w.update(DT, idle);
+
+    expect(ended).toEqual([1, 1]);
+    expect(w.rounds.phase).toBe("intermission");
+    expect(w.lastRoundKills).toBe(1);
+    expect(w.banner.text).toBe("Wave Cleared");
+    expect(w.notice.text).toBe("1 kill");
+  });
+
+  it("zeroes the per-round tally when the next round starts", () => {
+    const w = new World();
+    w.roundKills = 9;
+    step(w, FIRST_ROUND_DELAY + 0.1, emptyIntent());
+    expect(w.rounds.round).toBe(1);
+    expect(w.roundKills).toBe(0);
+  });
 });
 
 describe("World — jumping", () => {

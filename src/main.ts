@@ -73,6 +73,7 @@ world.onBuy = () => sound.buy();
 world.onDenied = () => sound.denied();
 world.onDoor = () => sound.door();
 world.onRoundStart = () => sound.roundStart();
+world.onRoundEnd = () => sound.waveCleared();
 world.onDeath = () => sound.death();
 world.onPerk = () => sound.perk();
 world.onCacheOpen = () => sound.cacheOpen();
@@ -85,8 +86,15 @@ world.onRepair = () => sound.repair();
 world.onRevive = () => sound.revive();
 
 // ---- state transitions ----
+/** Push the persisted audio settings into the live mixer. */
+function syncAudio(): void {
+  sound.setVolume(settings.masterVolume);
+  sound.setMuted(settings.muted);
+}
+
 function startGame(view: ViewName, mapId: string = world.def.id): void {
   sound.resume();
+  syncAudio();
   const def = getMap(mapId);
   // loadMap rebuilds everything derived from the map; reset is the cheaper path
   // when redeploying to the one already loaded.
@@ -129,8 +137,10 @@ function toOver(): void {
   input.exitLock();
   touch.setVisible(false);
   const reached = Math.max(1, world.rounds.round);
-  const best = Store.submit(reached);
-  gameover.show(reached, best);
+  const mapId = world.def.id;
+  const isRecord = reached > Store.getBest(mapId);
+  const best = Store.submit(mapId, reached);
+  gameover.show(reached, best, world.def.name, isRecord);
 }
 
 // Escape in a pointer-locked 3D view never reaches the keyboard handler: the
@@ -142,6 +152,7 @@ input.onLockChange = (locked) => {
 
 menu.onStart = (v, mapId) => startGame(v, mapId);
 pause.onResume = () => resumeGame();
+pause.onSettingsChange = () => syncAudio();
 pause.onQuit = () => toMenu();
 gameover.onRestart = () => startGame(vm.currentName());
 gameover.onMenu = () => toMenu();

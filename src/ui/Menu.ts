@@ -3,7 +3,7 @@
 // spawn into; both are always available via the T key in-game.
 
 import type { ViewName } from "../render/ViewManager";
-import { settings, updateSettings, DEFAULT_SETTINGS } from "../persist/Store";
+import { Store, settings, updateSettings, DEFAULT_SETTINGS } from "../persist/Store";
 import type { TouchMode } from "../persist/Store";
 import { MAPS, getMap } from "../data/maps";
 import { prefersTouch } from "../core/Touch";
@@ -62,6 +62,7 @@ export class Menu {
             <span class="mname">${m.name}</span>
             <span class="mblurb">${m.blurb ?? ""}</span>
             <span class="mmeta">${m.startRegions.length + m.doors.length} areas · ${m.wallBuys.length} wall guns</span>
+            <span class="mbest" data-best="${m.id}"></span>
           </button>`,
         ).join("")}
       </div>
@@ -89,6 +90,16 @@ export class Menu {
     this.el.querySelector("[data-start]")!.addEventListener("click", () => this.onStart?.(this.view, this.mapId));
     this.setView("3d");
     this.setMap(this.mapId);
+    this.refreshBests();
+  }
+
+  /** Paint each card's personal best. Re-read on every show — a run just ended. */
+  private refreshBests(): void {
+    const bests = Store.getBests();
+    for (const slot of this.el.querySelectorAll<HTMLElement>("[data-best]")) {
+      const best = bests[slot.dataset.best!] ?? 0;
+      slot.innerHTML = best > 0 ? `Best <b>Round ${best}</b>` : "No record";
+    }
   }
 
   private setMap(id: string): void {
@@ -106,6 +117,7 @@ export class Menu {
   }
 
   show(): void {
+    this.refreshBests();
     this.el.classList.remove("hidden");
   }
   hide(): void {
@@ -122,6 +134,8 @@ export class PauseMenu {
   readonly el: HTMLDivElement;
   onResume?: () => void;
   onQuit?: () => void;
+  /** Fired after any setting changes, so live systems (audio) can re-read them. */
+  onSettingsChange?: () => void;
 
   constructor(parent: HTMLElement) {
     this.el = document.createElement("div");
@@ -140,6 +154,14 @@ export class PauseMenu {
         <label class="row">
           <span>Invert look Y</span>
           <input type="checkbox" data-set="invertY">
+        </label>
+        <label>
+          <span>Master volume <b data-out="masterVolume"></b></span>
+          <input type="range" data-set="masterVolume" min="0" max="1" step="0.05">
+        </label>
+        <label class="row">
+          <span>Mute</span>
+          <input type="checkbox" data-set="muted">
         </label>
         <label class="row">
           <span>On-screen controls</span>
@@ -163,6 +185,7 @@ export class PauseMenu {
     this.el.querySelector("[data-reset]")!.addEventListener("click", () => {
       updateSettings({ ...DEFAULT_SETTINGS });
       this.syncControls();
+      this.onSettingsChange?.();
     });
 
     for (const el of this.el.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-set]")) {
@@ -170,6 +193,7 @@ export class PauseMenu {
         const key = el.dataset.set as SettingKey;
         updateSettings(readSetting(key, el));
         this.syncControls();
+        this.onSettingsChange?.();
       });
     }
     this.syncControls();
@@ -179,12 +203,16 @@ export class PauseMenu {
   private syncControls(): void {
     for (const el of this.el.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-set]")) {
       const key = el.dataset.set as SettingKey;
-      if (key === "invertY") (el as HTMLInputElement).checked = settings.invertY;
+      if (key === "invertY" || key === "muted") (el as HTMLInputElement).checked = settings[key];
       else el.value = String(settings[key]);
     }
     for (const out of this.el.querySelectorAll<HTMLElement>("[data-out]")) {
-      const key = out.dataset.out as "lookSensitivity" | "turnSpeed";
-      out.textContent = `${settings[key].toFixed(1)}x`;
+      const key = out.dataset.out as "lookSensitivity" | "turnSpeed" | "masterVolume";
+      // Volume reads as a percentage; the two control multipliers read as "1.4x".
+      out.textContent =
+        key === "masterVolume"
+          ? `${Math.round(settings.masterVolume * 100)}%`
+          : `${settings[key].toFixed(1)}x`;
     }
   }
 
@@ -197,11 +225,11 @@ export class PauseMenu {
   }
 }
 
-type SettingKey = "lookSensitivity" | "turnSpeed" | "invertY" | "touchControls";
+type SettingKey = "lookSensitivity" | "turnSpeed" | "invertY" | "touchControls" | "masterVolume" | "muted";
 
 /** One widget's value as the settings patch it stands for. */
 function readSetting(key: SettingKey, el: HTMLInputElement | HTMLSelectElement): Record<string, unknown> {
-  if (key === "invertY") return { invertY: (el as HTMLInputElement).checked };
+  if (key === "invertY" || key === "muted") return { [key]: (el as HTMLInputElement).checked };
   if (key === "touchControls") return { touchControls: el.value as TouchMode };
   return { [key]: Number(el.value) };
 }

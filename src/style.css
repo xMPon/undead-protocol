@@ -51,6 +51,22 @@ canvas { display: block; }
 .hud-round .rword { font-size: 13px; letter-spacing: 6px; color: var(--blood-bright); text-transform: uppercase; }
 .hud-round .rnum { font-size: 54px; line-height: 0.9; color: #f4ede0; font-weight: 700; }
 
+/* Between-wave clock, under the round number. Only visible in intermission. */
+.hud-intermission {
+  position: absolute; top: 96px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  text-align: center; text-shadow: 0 2px 8px #000; white-space: nowrap;
+}
+.hud-intermission .itag {
+  font-size: 11px; letter-spacing: 5px; text-transform: uppercase; color: var(--muted);
+}
+.hud-intermission .itime { font-size: 26px; line-height: 1; color: var(--toxic); }
+.hud-intermission .ikills {
+  font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--amber);
+}
+.hud-intermission.urgent .itime { color: var(--blood-bright); }
+.hud-intermission.urgent .itag { color: var(--blood-bright); }
+
 .hud-points {
   position: absolute; top: 24px; left: 26px;
   font-size: 30px; color: var(--amber); text-shadow: 0 2px 6px #000;
@@ -154,6 +170,10 @@ canvas { display: block; }
 .map-card.selected .mname { color: var(--toxic); }
 .map-card .mblurb { font-size: 12px; line-height: 1.45; color: var(--muted); letter-spacing: 0.5px; }
 .map-card .mmeta { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--amber); }
+.map-card .mbest {
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
+}
+.map-card .mbest b { color: var(--toxic); }
 
 /* ---- Pause settings ---- */
 .settings {
@@ -187,6 +207,7 @@ canvas { display: block; }
 .gameover-stat { margin-top: 18px; font-size: 22px; color: var(--ink); }
 .gameover-stat b { color: var(--amber); font-size: 30px; }
 .gameover-best { color: var(--muted); letter-spacing: 2px; margin-top: 4px; }
+.gameover-best.record { color: var(--toxic); }
 
 .credit { position: absolute; bottom: 16px; color: #445; font-size: 12px; letter-spacing: 2px; }
 /* The menu is pointer-events: none as an overlay, so its one link has to opt in. */
@@ -322,6 +343,8 @@ canvas { display: block; }
   .hud-points { top: calc(18px + env(safe-area-inset-top)); left: 86px; font-size: 22px; }
   .hud-round { top: calc(14px + env(safe-area-inset-top)); }
   .hud-round .rnum { font-size: 38px; }
+  .hud-intermission { top: 78px; }
+  .hud-intermission .itime { font-size: 20px; }
   .hud-health { left: calc(20px + env(safe-area-inset-left)); bottom: calc(118px + env(safe-area-inset-bottom)); width: 180px; }
   .hud-weapon { right: calc(20px + env(safe-area-inset-right)); bottom: calc(150px + env(safe-area-inset-bottom)); }
   .hud-weapon .wammo { font-size: 30px; }

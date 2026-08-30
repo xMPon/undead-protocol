@@ -1,12 +1,18 @@
 // Procedural WebAudio SFX — no asset files, mirroring blockcraft's approach.
 // The AudioContext is created lazily on the first user gesture (menu click) to
 // satisfy autoplay policies. Every method no-ops until resume() has run.
+//
+// Levels: gunfire is the loudest thing in the mix by design, but only just — the
+// round sting, the perk jingle and The Cache reveal are the sounds a player is
+// listening *for*, so they sit close behind the guns rather than under them.
 
 export class Sound {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private noise: AudioBuffer | null = null;
   muted = false;
+  /** Master output level, 0–1. Mirrors `settings.masterVolume`. */
+  volume = 0.5;
 
   /** Create/resume the context. Call from a user gesture. */
   resume(): void {
@@ -14,11 +20,33 @@ export class Sound {
       const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new Ctor();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.5;
+      this.master.gain.value = this.outputGain();
       this.master.connect(this.ctx.destination);
       this.noise = this.makeNoise(this.ctx);
     }
     void this.ctx.resume();
+  }
+
+  /** The gain the master node should be at right now. */
+  private outputGain(): number {
+    return this.muted ? 0 : Math.min(1, Math.max(0, this.volume));
+  }
+
+  /** Apply volume/mute to a live context. Safe to call before resume(). */
+  private applyGain(): void {
+    if (!this.master || !this.ctx) return;
+    // A short ramp instead of a step: a jump to zero mid-gunshot clicks.
+    this.master.gain.setTargetAtTime(this.outputGain(), this.ctx.currentTime, 0.02);
+  }
+
+  setVolume(v: number): void {
+    this.volume = Math.min(1, Math.max(0, v));
+    this.applyGain();
+  }
+
+  setMuted(m: boolean): void {
+    this.muted = m;
+    this.applyGain();
   }
 
   private makeNoise(ctx: AudioContext): AudioBuffer {
@@ -73,20 +101,20 @@ export class Sound {
   shot(weaponId: string): void {
     switch (weaponId) {
       case "breacher":
-        this.blast(0.9, 0.28, 1800);
-        this.tone(90, 0.18, 0.5, "square", 40);
+        this.blast(0.62, 0.28, 1800);
+        this.tone(90, 0.18, 0.34, "square", 40);
         break;
       case "kr12":
-        this.blast(0.6, 0.12, 3200);
-        this.tone(140, 0.08, 0.35, "square", 70);
+        this.blast(0.42, 0.12, 3200);
+        this.tone(140, 0.08, 0.24, "square", 70);
         break;
       case "pdw":
-        this.blast(0.42, 0.08, 4200);
-        this.tone(190, 0.05, 0.25, "square", 90);
+        this.blast(0.3, 0.08, 4200);
+        this.tone(190, 0.05, 0.18, "square", 90);
         break;
       default: // m9
-        this.blast(0.5, 0.1, 2600);
-        this.tone(160, 0.07, 0.3, "square", 80);
+        this.blast(0.35, 0.1, 2600);
+        this.tone(160, 0.07, 0.2, "square", 80);
     }
   }
   dryFire(): void {
@@ -110,12 +138,17 @@ export class Sound {
     this.tone(70 + Math.random() * 30, 0.5, 0.12, "sawtooth", 55);
   }
   roundStart(): void {
-    this.tone(180, 0.4, 0.3, "sawtooth", 120);
-    window.setTimeout(() => this.tone(240, 0.5, 0.3, "sawtooth", 160), 220);
+    this.tone(180, 0.4, 0.45, "sawtooth", 120);
+    window.setTimeout(() => this.tone(240, 0.5, 0.45, "sawtooth", 160), 220);
+  }
+  /** The wave is down: a falling two-note exhale, the opposite of roundStart. */
+  waveCleared(): void {
+    this.tone(330, 0.28, 0.34, "triangle");
+    window.setTimeout(() => this.tone(220, 0.5, 0.34, "triangle", 165), 200);
   }
   buy(): void {
-    this.tone(520, 0.09, 0.22, "square");
-    window.setTimeout(() => this.tone(780, 0.12, 0.22, "square"), 90);
+    this.tone(520, 0.09, 0.28, "square");
+    window.setTimeout(() => this.tone(780, 0.12, 0.28, "square"), 90);
   }
   denied(): void {
     this.tone(140, 0.16, 0.22, "square", 90);
@@ -133,9 +166,9 @@ export class Sound {
 
   /** A perk going down: three rising notes, the jingle without the jingle. */
   perk(): void {
-    this.tone(392, 0.12, 0.22, "triangle");
-    window.setTimeout(() => this.tone(523, 0.12, 0.22, "triangle"), 110);
-    window.setTimeout(() => this.tone(659, 0.24, 0.24, "triangle"), 230);
+    this.tone(392, 0.12, 0.34, "triangle");
+    window.setTimeout(() => this.tone(523, 0.12, 0.34, "triangle"), 110);
+    window.setTimeout(() => this.tone(659, 0.24, 0.36, "triangle"), 230);
   }
   /** The Cache lid coming up. */
   cacheOpen(): void {
@@ -144,8 +177,8 @@ export class Sound {
   }
   /** It has settled on something. */
   cacheReveal(): void {
-    this.tone(660, 0.18, 0.22, "square");
-    window.setTimeout(() => this.tone(880, 0.3, 0.22, "square"), 130);
+    this.tone(660, 0.18, 0.3, "square");
+    window.setTimeout(() => this.tone(880, 0.3, 0.3, "square"), 130);
   }
   /** It has packed up and gone somewhere else. */
   cacheMove(): void {
@@ -156,8 +189,8 @@ export class Sound {
     this.blast(0.22, 0.09, 3000, "highpass");
   }
   explosion(): void {
-    this.blast(1.0, 0.7, 700);
-    this.tone(70, 0.5, 0.5, "square", 30);
+    this.blast(0.8, 0.7, 700);
+    this.tone(70, 0.5, 0.4, "square", 30);
   }
   /** A plank being ripped off a barrier. */
   board(): void {

@@ -1,8 +1,9 @@
-// Tiny persistence: the best round reached and the handful of control settings,
-// in localStorage. Reads are defensive — a wiped or hand-edited value must never
-// take the game down.
+// Tiny persistence: the best round reached per map and the handful of control
+// settings, in localStorage. Reads are defensive — a wiped or hand-edited value
+// must never take the game down.
 
-const KEY = "undead-protocol:best-round";
+const LEGACY_KEY = "undead-protocol:best-round"; // pre-per-map single value
+const SCORES_KEY = "undead-protocol:best-rounds";
 const SETTINGS_KEY = "undead-protocol:settings";
 
 /** Player-tunable controls. Multipliers are relative to the built-in defaults. */
@@ -16,6 +17,10 @@ export interface Settings {
   mapId: string;
   /** On-screen controls: follow the device, or force them on/off. */
   touchControls: TouchMode;
+  /** Master output gain, 0–1. The old hard-coded value was 0.5. */
+  masterVolume: number;
+  /** Silence everything without losing the volume you had set. */
+  muted: boolean;
 }
 
 /** `auto` reads the device; the other two are the player overriding it. */
@@ -29,25 +34,76 @@ export const DEFAULT_SETTINGS: Settings = {
   invertY: false,
   mapId: "blacksite",
   touchControls: "auto",
+  masterVolume: 0.5,
+  muted: false,
 };
 
 const clampNum = (v: unknown, lo: number, hi: number, fallback: number): number =>
   typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : fallback;
 
+/** Map id → best round reached on it. Absent id means never survived a round. */
+export type BestRounds = Record<string, number>;
+
+function readScores(): BestRounds {
+  try {
+    const raw = localStorage.getItem(SCORES_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const out: BestRounds = {};
+    for (const [id, v] of Object.entries(parsed)) {
+      if (typeof v === "number" && Number.isFinite(v) && v > 0) out[id] = Math.floor(v);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function writeScores(scores: BestRounds): void {
+  try {
+    localStorage.setItem(SCORES_KEY, JSON.stringify(scores));
+  } catch {
+    // Private-mode or quota failures are not worth interrupting a round for.
+  }
+}
+
 export const Store = {
-  getBest(): number {
-    const raw = localStorage.getItem(KEY);
-    const n = raw ? parseInt(raw, 10) : 0;
-    return Number.isFinite(n) ? n : 0;
+  /** Every recorded best, keyed by map id. */
+  getBests(): BestRounds {
+    return readScores();
   },
-  /** Record `round` if it beats the stored best; returns the current best. */
-  submit(round: number): number {
-    const best = Store.getBest();
+  /** Best round on one map, 0 if there is no record for it. */
+  getBest(mapId: string): number {
+    return readScores()[mapId] ?? 0;
+  },
+  /** Record `round` on `mapId` if it beats the stored best; returns the best. */
+  submit(mapId: string, round: number): number {
+    const scores = readScores();
+    const best = scores[mapId] ?? 0;
     if (round > best) {
-      localStorage.setItem(KEY, String(round));
+      scores[mapId] = round;
+      writeScores(scores);
       return round;
     }
     return best;
+  },
+
+  /**
+   * Fold the old single-value best into the per-map record. The value has no map
+   * attached, so it lands on `mapId` — the map the player last deployed to, which
+   * is the only map it could plausibly have come from. Runs once: the legacy key
+   * is removed afterwards.
+   */
+  migrateLegacyBest(mapId: string): void {
+    try {
+      const raw = localStorage.getItem(LEGACY_KEY);
+      if (raw === null) return;
+      const n = parseInt(raw, 10);
+      if (Number.isFinite(n) && n > 0) Store.submit(mapId, n);
+      localStorage.removeItem(LEGACY_KEY);
+    } catch {
+      // Nothing here is worth failing a boot over.
+    }
   },
 
   getSettings(): Settings {
@@ -63,6 +119,8 @@ export const Store = {
         touchControls: TOUCH_MODES.includes(parsed.touchControls as TouchMode)
           ? (parsed.touchControls as TouchMode)
           : DEFAULT_SETTINGS.touchControls,
+        masterVolume: clampNum(parsed.masterVolume, 0, 1, DEFAULT_SETTINGS.masterVolume),
+        muted: parsed.muted === true,
       };
     } catch {
       return { ...DEFAULT_SETTINGS };
@@ -79,6 +137,8 @@ export const Store = {
 
 /** Live settings, shared by the renderers and the pause menu. */
 export const settings: Settings = Store.getSettings();
+
+Store.migrateLegacyBest(settings.mapId);
 
 export function updateSettings(patch: Partial<Settings>): void {
   Object.assign(settings, patch);

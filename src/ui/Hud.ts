@@ -20,6 +20,7 @@ export class Hud {
   private prompt: HTMLElement;
   private banner: HTMLElement;
   private notice: HTMLElement;
+  private intermission: HTMLElement;
   private perkRow: HTMLElement;
   private grenades: HTMLElement;
   private downed: HTMLElement;
@@ -34,6 +35,7 @@ export class Hud {
     this.root.id = "hud";
     this.root.innerHTML = `
       <div class="hud-round"><div class="rword">Round</div><div class="rnum">1</div></div>
+      <div class="hud-intermission hidden"><span class="itag">Next wave in</span><b class="itime">0</b><span class="ikills"></span></div>
       <div class="hud-points"><span class="plabel">Points</span><span class="pval">500</span></div>
       <div class="hud-weapon"><div class="wname">M9 Sidearm</div><div class="wammo"><span class="mag">12</span> <span class="reserve">/ 96</span></div><div class="wnades">Frags <b>2</b></div></div>
       <div class="hud-health"><div class="hlabel">Vitals</div><div class="bar"><div class="fill"></div></div><div class="hud-perks"></div></div>
@@ -59,6 +61,7 @@ export class Hud {
     this.prompt = this.root.querySelector(".hud-prompt")!;
     this.banner = this.root.querySelector(".hud-banner")!;
     this.notice = this.root.querySelector(".hud-notice")!;
+    this.intermission = this.root.querySelector(".hud-intermission")!;
     this.perkRow = this.root.querySelector(".hud-perks")!;
     this.grenades = this.root.querySelector(".wnades")!;
     this.downed = this.root.querySelector(".hud-downed")!;
@@ -123,6 +126,8 @@ export class Hud {
       this.prompt.classList.add("hidden");
     }
 
+    this.updateIntermission(world);
+
     this.banner.textContent = world.banner.text;
     this.banner.classList.toggle("show", world.banner.ttl > 0);
     this.notice.textContent = world.notice.text;
@@ -136,6 +141,26 @@ export class Hud {
     // there is no click to give and no lock to get, so the hint stays down.
     this.lookHint.classList.toggle("hidden", touch || !(view === "3d" && !locked));
     this.vignette.style.opacity = String(p.damageFlash * 0.7);
+  }
+
+  /**
+   * The gap between waves is the only time the player can spend points, rebuild
+   * barriers and reposition, so it gets a visible clock rather than being an
+   * unmarked lull. The tally is for the wave that just ended.
+   */
+  private updateIntermission(world: World): void {
+    const r = world.rounds;
+    const between = r.phase === "intermission";
+    this.intermission.classList.toggle("hidden", !between);
+    if (!between) return;
+    const secs = Math.max(0, Math.ceil(r.timer));
+    this.intermission.querySelector(".itag")!.textContent = r.round === 0 ? "First wave in" : "Next wave in";
+    this.intermission.querySelector(".itime")!.textContent = String(secs);
+    const kills = world.lastRoundKills;
+    this.intermission.querySelector(".ikills")!.textContent =
+      r.round === 0 ? "" : `Round ${r.round} cleared · ${kills} ${kills === 1 ? "kill" : "kills"}`;
+    // The last three seconds are the ones worth reacting to.
+    this.intermission.classList.toggle("urgent", r.timer <= 3);
   }
 
   show(): void {

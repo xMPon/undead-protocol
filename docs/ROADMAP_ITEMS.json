@@ -187,7 +187,7 @@
     "id": "backlog-audio-settings",
     "title": "Add volume control and an audio mix pass",
     "phase": "Backlog",
-    "status": "todo",
+    "status": "done",
     "size": "S",
     "details": "Sound has a muted flag and a fixed 0.5 master gain with no way to change either from the UI. Add master volume and mute to the pause menu, persisted through Store, and level the mix while there: gunshots currently sit far above the round sting and the perk jingle."
   },
@@ -195,7 +195,7 @@
     "id": "backlog-per-map-high-scores",
     "title": "Track high scores per map",
     "phase": "Backlog",
-    "status": "todo",
+    "status": "done",
     "size": "S",
     "details": "Store keeps a single best-round value across all five maps, so a good run on Dustline is measured against one on Blacksite. Move to a per-map record, show it on the map-select card and the game-over screen, and migrate the existing single value rather than dropping it."
   },
@@ -235,7 +235,7 @@
     "id": "backlog-round-feedback",
     "title": "Improve round transition feedback",
     "phase": "Backlog",
-    "status": "todo",
+    "status": "done",
     "size": "S",
     "details": "The round banner is the only signal a round changed. Add a wave-cleared moment, a visible intermission countdown so the player knows how long they have to spend points and rebuild, and a kill counter for the round just finished."
   },
@@ -283,7 +283,7 @@
     "id": "backlog-ci-pr-checks",
     "title": "Run tests on pull requests",
     "phase": "Backlog",
-    "status": "todo",
+    "status": "done",
     "size": "S",
     "details": "Tests only run inside the Pages deploy on a push to main, so a broken branch is not caught until it is already merged. Add a CI workflow running typecheck, tests and build on pull requests and pushes to any branch."
   },
@@ -291,7 +291,7 @@
     "id": "backlog-action-versions",
     "title": "Update the GitHub Actions versions",
     "phase": "Backlog",
-    "status": "todo",
+    "status": "done",
     "size": "S",
     "details": "Both workflows warn on every run: actions/checkout@v4, actions/setup-node@v4, actions/configure-pages@v5 and actions/upload-artifact@v4 target Node 20, which the runners now force onto Node 24. Move to the current major versions before a runner stops being forgiving about it."
   },

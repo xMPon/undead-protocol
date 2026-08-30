@@ -99,6 +99,10 @@ export class World {
   /** Whether the player is aiming down sights this frame (renderers read it). */
   ads = false;
   kills = 0;
+  /** Kills so far in the round currently running. */
+  roundKills = 0;
+  /** Kills in the round that just ended — what the intermission reports. */
+  lastRoundKills = 0;
   gameOver = false;
   prompt: InteractPrompt | null = null;
 
@@ -112,6 +116,8 @@ export class World {
   onBuy?: () => void;
   onDenied?: () => void;
   onRoundStart?: (round: number) => void;
+  /** A round has been cleared; the intermission starts now. */
+  onRoundEnd?: (round: number, kills: number) => void;
   onDoor?: () => void;
   onDeath?: () => void;
   onPerk?: (perkId: string) => void;
@@ -204,6 +210,8 @@ export class World {
     this.cache = newCache();
     this.cache.site = this.map.liveCacheSites()[0] ?? 0;
     this.kills = 0;
+    this.roundKills = 0;
+    this.lastRoundKills = 0;
     this.gameOver = false;
     this.prompt = null;
     this.focus = null;
@@ -369,6 +377,7 @@ export class World {
         if (killed) {
           p.points += POINTS_KILL - POINTS_HIT;
           this.kills++;
+          this.roundKills++;
           this.onKill?.();
         }
       }
@@ -453,6 +462,7 @@ export class World {
       if (killed) {
         p.points += POINTS_KILL - POINTS_HIT;
         this.kills++;
+        this.roundKills++;
         this.onKill?.();
       }
     }
@@ -501,8 +511,16 @@ export class World {
     const alive = this.aliveCount();
     const ev = this.rounds.tick(dt, alive);
     if (ev === "start") {
+      this.roundKills = 0;
       this.banner = { text: `Round ${this.rounds.round}`, ttl: 2.2 };
       this.onRoundStart?.(this.rounds.round);
+    } else if (ev === "end") {
+      // The wave being over is worth its own beat: the banner says so, the notice
+      // reports the tally, and the HUD counts the intermission down from here.
+      this.lastRoundKills = this.roundKills;
+      this.banner = { text: "Wave Cleared", ttl: 2.4 };
+      this.notice = { text: `${this.roundKills} ${this.roundKills === 1 ? "kill" : "kills"}`, ttl: 2.8 };
+      this.onRoundEnd?.(this.rounds.round, this.roundKills);
     }
 
     this.spawnCooldown -= dt;

@@ -1,5 +1,6 @@
-// Death screen — shows the round reached and the stored best, with restart /
-// menu actions.
+// Death screen — shows the round reached and the stored best for the map that
+// was played, with restart / menu actions. Bests are per map, so the screen names
+// the map rather than implying one global record.
 
 export class GameOver {
   readonly el: HTMLDivElement;
@@ -27,9 +28,12 @@ export class GameOver {
     this.el.querySelector("[data-menu]")!.addEventListener("click", () => this.onMenu?.());
   }
 
-  show(round: number, best: number): void {
+  show(round: number, best: number, mapName: string, isRecord = false): void {
     this.roundEl.textContent = String(round);
-    this.bestEl.textContent = `Best: ${best}`;
+    this.bestEl.textContent = isRecord
+      ? `New ${mapName} record — Round ${best}`
+      : `${mapName} best: Round ${best}`;
+    this.bestEl.classList.toggle("record", isRecord);
     this.el.classList.remove("hidden");
   }
   hide(): void {
