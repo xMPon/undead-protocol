@@ -5,6 +5,7 @@
 // performance/beauty balance point: real surface detail without per-object cost.
 
 import * as THREE from "three";
+import { hash01 } from "../core/rng";
 import type { WallRect, GroundKind, PropKind, WeaponDef, DecalDef, DecalKind } from "../sim/types";
 
 // ---------- low-level canvas helpers ----------
@@ -293,40 +294,179 @@ function metalMaterial(color?: number, rough = 0.5): THREE.MeshStandardMaterial 
 
 // ---------- terrain, sky, labels ----------
 
+export interface TerrainMeshOpts {
+  /**
+   * How far the ground keeps going past `bounds` before it ends, in world
+   * units. Make it longer than the theme's `fogFar` and the apron has dissolved
+   * into haze before its rim, so the level never reads as a slab in the sky.
+   */
+  apron?: number;
+  /** How far the far rim sags below the play area, so it falls out of view. */
+  droop?: number;
+  /** How deep the rim's vertical skirt hangs, so there is no seeing under it. */
+  skirt?: number;
+}
+
+const smoothstep = (t: number): number => t * t * (3 - 2 * t);
+
+/** Smooth value noise on the integer lattice, in [0, 1). Used for far relief. */
+function vnoise(x: number, y: number, seed: number): number {
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const fx = x - x0;
+  const fy = y - y0;
+  const sx = fx * fx * (3 - 2 * fx);
+  const sy = fy * fy * (3 - 2 * fy);
+  const v00 = hash01(x0, y0, seed);
+  const v10 = hash01(x0 + 1, y0, seed);
+  const v01 = hash01(x0, y0 + 1, seed);
+  const v11 = hash01(x0 + 1, y0 + 1, seed);
+  const a = v00 + (v10 - v00) * sx;
+  const b = v01 + (v11 - v01) * sx;
+  return a + (b - a) * sy;
+}
+
+/**
+ * Grid lines for one axis: `cell`-spaced across the play area, then geometrically
+ * widening steps outward to `apron` on both sides. The apron is most of the
+ * ground by area but a handful of rings by vertex count, because nothing out
+ * there is ever nearer than the fog.
+ */
+export function terrainAxis(min: number, max: number, cell: number, apron: number): number[] {
+  const outward: number[] = [];
+  let step = cell * 2;
+  let d = 0;
+  while (d < apron - 1e-6) {
+    d = Math.min(apron, d + step);
+    outward.push(d);
+    step *= 1.55;
+  }
+  const out: number[] = [];
+  for (let i = outward.length - 1; i >= 0; i--) out.push(min - outward[i]);
+  const n = Math.max(1, Math.ceil((max - min) / cell));
+  for (let i = 0; i <= n; i++) out.push(Math.min(max, min + i * cell));
+  for (const dd of outward) out.push(max + dd);
+  return out;
+}
+
+/**
+ * Ground height anywhere on the plane, inside `bounds` or out on the apron, plus
+ * `t` — how far out it is, 0 at the play area's edge and 1 at the apron's rim.
+ *
+ * Outside, the height is the nearest edge height blended toward what the world
+ * settles to out there. That keeps the seam exact (at `t = 0` it *is* the edge
+ * height, so there is no cliff around the level) while letting the distance be
+ * its own quiet shape. The far level and its relief come from the map's own
+ * perimeter, so the apron continues the ground it is attached to: a rolling yard
+ * keeps rolling, and a harbour stays flat water rather than sprouting hills.
+ */
+export function apronSampler(
+  bounds: WallRect,
+  heightAt: (x: number, y: number) => number,
+  apron: number,
+  droop = 5,
+): (x: number, y: number) => { h: number; t: number } {
+  let sum = 0;
+  let sum2 = 0;
+  let count = 0;
+  const SAMPLES = 48;
+  for (let i = 0; i <= SAMPLES; i++) {
+    const u = i / SAMPLES;
+    const px = bounds.minX + (bounds.maxX - bounds.minX) * u;
+    const py = bounds.minY + (bounds.maxY - bounds.minY) * u;
+    const edge = [
+      heightAt(px, bounds.minY),
+      heightAt(px, bounds.maxY),
+      heightAt(bounds.minX, py),
+      heightAt(bounds.maxX, py),
+    ];
+    for (const h of edge) {
+      sum += h;
+      sum2 += h * h;
+      count++;
+    }
+  }
+  const farLevel = sum / count;
+  const spread = Math.sqrt(Math.max(0, sum2 / count - farLevel * farLevel));
+  // Ground with a dead-level perimeter is level on purpose — a harbour, a
+  // flooded basin — so its distance stays level too. Anything else gets rolling
+  // relief scaled to the map, because a horizon with no shape in it is a
+  // backdrop, and a backdrop is the thing that makes a level look pasted on.
+  const span = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+  const relief = spread < 0.02 ? 0 : Math.min(6, Math.max(1.5, spread * 3, span * 0.045));
+
+  return (wx: number, wy: number) => {
+    const cx = Math.min(Math.max(wx, bounds.minX), bounds.maxX);
+    const cy = Math.min(Math.max(wy, bounds.minY), bounds.maxY);
+    const inner = heightAt(cx, cy);
+    if (apron <= 0 || (cx === wx && cy === wy)) return { h: inner, t: 0 };
+    const t = smoothstep(Math.min(1, Math.hypot(wx - cx, wy - cy) / apron));
+    const far =
+      farLevel +
+      relief * ((vnoise(wx / 62, wy / 62, 911) - 0.5) * 1.5 + (vnoise(wx / 23, wy / 23, 912) - 0.5) * 0.5) -
+      droop * t * t;
+    return { h: inner + (far - inner) * t, t };
+  };
+}
+
 export function buildTerrainMesh(
   bounds: WallRect,
   heightAt: (x: number, y: number) => number,
   ground: GroundKind,
   cell = 1,
+  opts: TerrainMeshOpts = {},
 ): THREE.Mesh {
-  const cols = Math.max(1, Math.ceil((bounds.maxX - bounds.minX) / cell));
-  const rows = Math.max(1, Math.ceil((bounds.maxY - bounds.minY) / cell));
+  const apron = Math.max(0, opts.apron ?? 0);
+  const skirt = opts.skirt ?? 60;
   const [br, bg, bb] = GROUND_BASE[ground];
   const uvScale = 0.14;
 
+  const sample = apronSampler(bounds, heightAt, apron, opts.droop ?? 5);
+  const xs = terrainAxis(bounds.minX, bounds.maxX, cell, apron);
+  const ys = terrainAxis(bounds.minY, bounds.maxY, cell, apron);
   const positions: number[] = [];
   const uvs: number[] = [];
   const colors: number[] = [];
-  for (let j = 0; j <= rows; j++) {
-    for (let i = 0; i <= cols; i++) {
-      const wx = bounds.minX + i * cell;
-      const wy = bounds.minY + j * cell;
-      const h = heightAt(wx, wy);
+  for (const wy of ys) {
+    for (const wx of xs) {
+      const { h, t } = sample(wx, wy);
       positions.push(wx, h, wy);
       uvs.push(wx * uvScale, wy * uvScale);
-      const f = Math.max(0.5, Math.min(1.15, 0.78 + h * 0.11));
+      // Height shading, flattened with distance so the apron does not band.
+      const f = Math.max(0.5, Math.min(1.15, 0.78 + h * 0.11)) * (1 - 0.18 * t);
       colors.push((br / 255) * f, (bg / 255) * f, (bb / 255) * f);
     }
   }
   const indices: number[] = [];
-  const stride = cols + 1;
-  for (let j = 0; j < rows; j++) {
-    for (let i = 0; i < cols; i++) {
+  const stride = xs.length;
+  for (let j = 0; j < ys.length - 1; j++) {
+    for (let i = 0; i < stride - 1; i++) {
       const a = j * stride + i;
       const b = a + 1;
       const c = a + stride;
       const d = c + 1;
       indices.push(a, c, b, b, c, d);
+    }
+  }
+
+  // A vertical skirt hanging off the rim. The apron is already lost in fog by
+  // the time it ends, but from a rooftop or a gallery you can look down past it,
+  // and ground you can see the underside of is ground that floats.
+  if (apron > 0 && skirt > 0) {
+    const last = ys.length - 1;
+    const rim: number[] = [];
+    for (let i = 0; i < stride; i++) rim.push(i);
+    for (let j = 1; j < ys.length; j++) rim.push(j * stride + stride - 1);
+    for (let i = stride - 2; i >= 0; i--) rim.push(last * stride + i);
+    for (let j = ys.length - 2; j >= 0; j--) rim.push(j * stride);
+    const base = positions.length / 3;
+    for (const v of rim) {
+      positions.push(positions[v * 3], positions[v * 3 + 1] - skirt, positions[v * 3 + 2]);
+      uvs.push(uvs[v * 2], uvs[v * 2 + 1]);
+      colors.push(colors[v * 3] * 0.55, colors[v * 3 + 1] * 0.55, colors[v * 3 + 2] * 0.55);
+    }
+    for (let k = 0; k < rim.length - 1; k++) {
+      indices.push(rim[k], base + k, rim[k + 1], rim[k + 1], base + k, base + k + 1);
     }
   }
 
@@ -342,25 +482,40 @@ export function buildTerrainMesh(
   return mesh;
 }
 
-/** A large gradient sky dome (top → warm horizon), unaffected by fog. */
-export function makeSkyDome(topHex: number, horizonHex: number): THREE.Mesh {
-  const geo = new THREE.SphereGeometry(300, 24, 16);
+/**
+ * A large gradient sky dome, unaffected by fog: the horizon glow steeped in
+ * `hazeHex` low down, clearing into it a few degrees up, then the sky colour
+ * overhead. `hazeHex` is the theme's fog colour — what distant ground fades to
+ * — so the two are within a shade of each other where they meet and the level
+ * ends in a horizon rather than at an edge.
+ */
+export function makeSkyDome(topHex: number, horizonHex: number, hazeHex: number, radius = 400): THREE.Mesh {
+  const geo = new THREE.SphereGeometry(radius, 32, 48);
   const top = new THREE.Color(topHex);
   const horizon = new THREE.Color(horizonHex);
+  const haze = new THREE.Color(hazeHex);
   const pos = geo.attributes.position;
   const colors = new Float32Array(pos.count * 3);
   const c = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i) / 300; // -1..1
-    const t = Math.pow(Math.max(0, y), 0.5);
-    c.copy(horizon).lerp(top, t);
+    const y = pos.getY(i) / radius; // -1..1
+    // Haze thins with elevation: heaviest on the horizon, gone by the time the
+    // eye is up in the sky proper. It only tints the glow rather than replacing
+    // it, because a sky that goes *darker* toward the horizon reads as a
+    // painted backdrop — the land is what goes dark with distance, not the air
+    // above it. Below the eye line the mix holds, so distant ground and the sky
+    // it stands against stay within a shade of each other and meet in a horizon.
+    c.copy(haze).lerp(horizon, 0.35 + 0.65 * smoothstep(Math.max(0, Math.min(1, y / 0.16))));
+    c.lerp(top, Math.pow(Math.max(0, (y - 0.1) / 0.9), 0.7));
     colors[i * 3] = c.r;
     colors[i * 3 + 1] = c.g;
     colors[i * 3 + 2] = c.b;
   }
   geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false });
-  return new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.renderOrder = -1;
+  return mesh;
 }
 
 export function makeLabelSprite(title: string, sub: string): THREE.Sprite {

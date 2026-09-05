@@ -53,10 +53,10 @@ changes nothing about game state.
 | `sim/collision.ts` | circle vs rect/**oriented box**/disc + **height-aware obstacle** resolution, `supportHeight`, ray casts, `clampToZones` player cage (pure) |
 | `sim/pathing.ts` | BFS flow-field toward the player; zombies sample its gradient |
 | `render/Renderer.ts` | the interface both views implement (`render`/`buildIntent`/…) |
-| `render/ThirdPerson3D.ts` | Three.js view: displaced terrain, sun **shadows** + ACES tone mapping, entity jump lift, the diegetic light rig (a fixed 14-light pool handed to the nearest fixtures + haze cones + flicker), atmosphere (fire, smoke, dust, stars), the Phase 2 fixtures (perk cabinets, The Cache with its lid/beam/turning gun, barrier planks, pooled grenades and blasts) and the ADS FOV/camera pull |
+| `render/ThirdPerson3D.ts` | Three.js view: displaced terrain + its horizon apron, the camera-borne sky dome, sun **shadows** + ACES tone mapping, entity jump lift, the diegetic light rig (a fixed 14-light pool handed to the nearest fixtures + haze cones + flicker), atmosphere (fire, smoke, dust, stars), the Phase 2 fixtures (perk cabinets, The Cache with its lid/beam/turning gun, barrier planks, pooled grenades and blasts) and the ADS FOV/camera pull |
 | `render/TopDown2D.ts` | Canvas 2D top-down: terrain hillshade, prop footprints (dressing drawn faint), light glows, jump shadows, machine/box/crate footprints, per-barrier plank counts, grenades and blast rings |
 | `render/ViewManager.ts` | holds both renderers, keeps one visible, toggles them |
-| `render/procgen.ts` | procedural PBR-ish materials (albedo + **normal maps**), terrain mesh, sky dome, prop meshes, jointed character rigs, weapon models, decal textures — no asset files |
+| `render/procgen.ts` | procedural PBR-ish materials (albedo + **normal maps**), terrain mesh + the **apron** that carries it to the horizon, haze-footed sky dome, prop meshes, jointed character rigs, weapon models, decal textures — no asset files |
 | `data/weapons.ts` | `WEAPONS` registry (original, non-trademarked designations) + `CACHE_POOL`; `boxOnly` guns are Cache-only and never valid on a wall |
 | `data/maps.ts` | the map roster (`MAPS`, `getMap`) the select menu and saved settings read. Draft status per map: [`docs/MAP-AUDIT.md`](docs/MAP-AUDIT.md) |
 | `data/map_blacksite.ts` | the reference map "Blacksite" — walls, barriers, buys, doors, terrain, theme, props, lights, decals, `playBounds` |
@@ -125,6 +125,14 @@ changes nothing about game state.
   follow. Perk cabinets are solid (they are in `map.walls` *and* `obstacles`);
   The Cache is deliberately not, because it relocates mid-round and the obstacle
   list only rebuilds when a door opens.
+- **The ground does not stop at `bounds`.** `buildTerrainMesh` continues it on
+  an apron that runs past the theme's `fogFar` and hangs a skirt off its rim, so
+  a map is never a slab with sky behind it. Apron height comes from
+  `apronSampler`: the nearest bounds-edge height blended outward, which keeps the
+  seam exact and lets the distance inherit the map's own character — a rolling
+  yard keeps rolling, a dead-level harbour stays level. The sky dome rides with
+  the camera and wears the fog colour on its horizon, so land and sky meet in
+  haze rather than at an edge.
 - **Elevation is cosmetic to gameplay.** `Terrain.heightAt` and jump `footY`
   drive where things are *drawn* and height-aware obstacle mounting, but
   movement/collision resolve in 2D — so the sim stays deterministic and testable.
@@ -166,7 +174,8 @@ the list.
   colourful, prop-rich Blacksite (containers/crates/barrels/sandbags/lamps/cars,
   blast-wall cover, sunken bay + raised docks); diegetic lighting (overhead sun +
   lamp posts + car headlights); real-time shadows + ACES tone mapping + normal-
-  mapped materials + gradient sky; `playBounds` player cage; fixed 3D aim.
+  mapped materials + gradient sky; `playBounds` player cage; fixed 3D aim; a
+  terrain apron + haze horizon so no map reads as a slab floating in the sky.
   **Environment-detail pass:** 16 more prop kinds (chain-link fence, jersey
   barriers, pipes, pallets, dumpsters, tanks, generators, a guard tower, a comms
   mast, floodlights, fire barrels, wrecks, rubble, dead trees, cones, signs,

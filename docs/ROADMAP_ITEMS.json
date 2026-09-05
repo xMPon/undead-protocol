@@ -302,5 +302,13 @@
     "status": "todo",
     "size": "S",
     "details": "style.css asks for Rajdhani throughout and nothing ever loads it, so the HUD and menus fall back to Segoe UI and the intended look never appears. Either load the face (an external request, against the project's no-asset-files habit) or design the fallback stack deliberately."
+  },
+  {
+    "id": "phase-1-map-horizon",
+    "title": "Stop maps reading as slabs floating in the sky",
+    "phase": "Phase 1",
+    "status": "done",
+    "size": "S",
+    "details": "The terrain mesh was built to the map bounds exactly, so every map ended in a hard cut with sky behind and below it — most obvious on the open maps and from any raised position. Ground now continues past the play area on an apron that runs beyond the theme's fog and hangs a skirt off its rim, with height taken from the map's own perimeter so the seam is exact and the distance keeps the character of the ground it is attached to (rolling yard, flat harbour). The sky dome rides with the camera, carries the fog colour as haze on the horizon, and the camera's far plane was widened to hold the apron from a far corner."
   }
 ]

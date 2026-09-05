@@ -43,6 +43,9 @@ import { LOOK_PER_PX, prefersTouch } from "../core/Touch";
 import { GRENADE_RADIUS } from "../sim/Grenade";
 
 const WALL_H = 2.6;
+// The sky rides with the camera, so this only has to sit outside everything the
+// eye can pick out and inside the camera's far plane.
+const SKY_RADIUS = 500;
 const LOOK_SENS = 0.0022;
 /** Radians per second for keyboard turning (Q/E, arrows) at turnSpeed 1. */
 const TURN_RATE = 2.4;
@@ -152,7 +155,9 @@ export class ThirdPerson3D implements Renderer {
   private canvas!: HTMLCanvasElement;
   private renderer!: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(70, 1, 0.1, 400);
+  // Far enough to hold the whole apron from a far corner of any map, so distant
+  // ground is never clipped away and replaced by sky.
+  private camera = new THREE.PerspectiveCamera(70, 1, 0.1, 700);
 
   private playerRig!: CharacterRig;
   private player!: THREE.Group;
@@ -209,6 +214,7 @@ export class ThirdPerson3D implements Renderer {
   private plumes: PlumeFx[] = [];
   private dust: THREE.Points | null = null;
   private stars: THREE.Points | null = null;
+  private skyDome: THREE.Mesh | null = null;
 
   mount(container: HTMLElement): void {
     this.canvas = document.createElement("canvas");
@@ -279,6 +285,7 @@ export class ThirdPerson3D implements Renderer {
     this.plumes = [];
     this.beacons = [];
     this.doorMeshes.clear();
+    this.skyDome = null;
     for (const light of this.lightPool) light.intensity = 0;
   }
 
@@ -338,14 +345,25 @@ export class ThirdPerson3D implements Renderer {
     this.dirLight.color.setHex(th.dir);
     this.dirLight.intensity = th.dirIntensity;
 
-    // Gradient dusk sky dome (warm horizon derived from the sun colour).
-    const horizon = new THREE.Color(th.dir).lerp(new THREE.Color(th.sky), 0.45).getHex();
-    this.mapRoot.add(makeSkyDome(th.sky, horizon));
-
-    // Sun casts shadows sized to the map bounds.
     const mcx = (b.minX + b.maxX) / 2;
     const mcz = (b.minY + b.maxY) / 2;
     const span = Math.max(b.maxX - b.minX, b.maxY - b.minY);
+
+    // How far the ground keeps going past the play area. Always further than the
+    // fog reaches, so the apron is solid haze before it ends — that is what turns
+    // the edge of the level into a horizon instead of a drop into the sky.
+    const apron = Math.max(th.fogFar * 1.35, span * 1.1, 120);
+
+    // Gradient dusk sky dome (warm horizon derived from the sun colour), moved
+    // to the camera every frame. Its lowest band is the glow steeped in the fog
+    // colour — the colour distant ground fades to — so land and sky meet in
+    // haze instead of at an edge.
+    const horizon = new THREE.Color(th.dir).lerp(new THREE.Color(th.sky), 0.45).getHex();
+    this.skyDome = makeSkyDome(th.sky, horizon, th.fog, SKY_RADIUS);
+    this.skyDome.position.set(mcx, 0, mcz);
+    this.mapRoot.add(this.skyDome);
+
+    // Sun casts shadows sized to the map bounds.
     // High overhead sun (slight tilt) so shadows drop straight down, not sideways.
     this.dirLight.position.set(mcx + span * 0.18, span * 1.35, mcz - span * 0.12);
     this.dirLight.target.position.set(mcx, 0, mcz);
@@ -364,8 +382,9 @@ export class ThirdPerson3D implements Renderer {
     this.dirLight.shadow.bias = -0.0004;
     this.dirLight.shadow.normalBias = 0.03;
 
-    // Ground: displaced terrain mesh.
-    this.mapRoot.add(buildTerrainMesh(b, height, th.ground, 1));
+    // Ground: displaced terrain mesh, plus the apron that carries it to the
+    // horizon and a skirt under its rim so it can never be seen to float.
+    this.mapRoot.add(buildTerrainMesh(b, height, th.ground, 1, { apron }));
 
     // Walls: rooted below the floor so they never float on uneven ground.
     const wallMat = wallMaterial();
@@ -922,6 +941,9 @@ export class ThirdPerson3D implements Renderer {
       this.dust.position.set(this.camera.position.x, 0, this.camera.position.z);
     }
     if (this.stars) this.stars.position.copy(this.camera.position);
+    // The sky rides with the camera, the way a sky does: it can never be walked
+    // up to, and it can never fall outside the far plane and leave a hole.
+    if (this.skyDome) this.skyDome.position.copy(this.camera.position);
   }
 
   render(world: World, dt: number): void {
