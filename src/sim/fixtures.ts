@@ -19,13 +19,15 @@ export interface FixtureSpec {
 /** A chest-high cabinet you have to walk around. */
 export const PERK_MACHINE: FixtureSpec = { hx: 0.55, hy: 0.45, height: 2.1, solid: true };
 /**
- * The Cache is a low crate and deliberately NOT solid: it relocates mid-round,
- * and an obstacle list that only rebuilds when a door opens would leave an
- * invisible box behind wherever it used to be.
+ * The Cache is a strapped timber crate you have to walk around. It relocates
+ * mid-round, so World re-runs `buildObstacles` (and the flow field) whenever the
+ * box moves — without that, a solid Cache would leave an invisible box behind
+ * wherever it used to be, which is why this was non-solid to begin with.
  */
-export const CACHE_BOX: FixtureSpec = { hx: 0.9, hy: 0.62, height: 0.95, solid: false };
-/** A knee-high ammo crate — dressing you step over. */
-export const SUPPLY_CRATE: FixtureSpec = { hx: 0.6, hy: 0.45, height: 0.62, solid: false };
+export const CACHE_BOX: FixtureSpec = { hx: 0.9, hy: 0.62, height: 0.95, solid: true };
+/** A thigh-high ammo crate. Hard-edged enough that walking through it reads as a
+ *  bug, so it blocks; the jump clears it if you want to be on top of it. */
+export const SUPPLY_CRATE: FixtureSpec = { hx: 0.6, hy: 0.45, height: 0.62, solid: true };
 
 /** The world AABB a fixture covers, rotation included. */
 export function fixtureAabb(spec: FixtureSpec, pos: Vec2, rot = 0): WallRect {

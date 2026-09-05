@@ -7,7 +7,7 @@ import { distSq } from "../core/math";
 import type { MapDef, WallRect, BarrierDef, WallBuyDef, DoorDef, PerkMachineDef, CacheSiteDef, SupplyDef } from "./types";
 import { propColliders, colliderAabb, isSolidProp } from "./props";
 import { Boards } from "./Barriers";
-import { PERK_MACHINE, fixtureAabb } from "./fixtures";
+import { PERK_MACHINE, SUPPLY_CRATE, CACHE_BOX, fixtureAabb } from "./fixtures";
 
 export const INTERACT_RANGE = 2.4;
 
@@ -24,6 +24,9 @@ export class GameMap {
   /** Plank counts, indexed to match `def.barriers`. */
   readonly boards: Boards;
   walls: WallRect[] = [];
+  /** Where The Cache is standing right now. World keeps this in step with
+   *  `Cache.site`, because the box moves and the flow field has to follow it. */
+  private cacheWall: WallRect | null = null;
 
   constructor(def: MapDef) {
     this.def = def;
@@ -45,10 +48,23 @@ export class GameMap {
       if (!isSolidProp(p)) continue;
       for (const c of propColliders(p)) walls.push(colliderAabb(c));
     }
-    // Perk cabinets are solid whatever region they are in — a machine you can
-    // walk through is scenery, and the horde would path straight through it too.
-    for (const m of this.def.perkMachines ?? []) walls.push(fixtureAabb(PERK_MACHINE, m.pos, m.rot ?? 0));
+    // Fixtures are solid whatever region they are in — a machine or a crate you
+    // can walk through is scenery, and the horde would path straight through it
+    // too. The Cache is carried separately because it moves; see `setCacheSite`.
+    if (PERK_MACHINE.solid) {
+      for (const m of this.def.perkMachines ?? []) walls.push(fixtureAabb(PERK_MACHINE, m.pos, m.rot ?? 0));
+    }
+    if (SUPPLY_CRATE.solid) {
+      for (const s of this.def.supplies ?? []) walls.push(fixtureAabb(SUPPLY_CRATE, s.pos, s.rot ?? 0));
+    }
+    if (this.cacheWall) walls.push(this.cacheWall);
     this.walls = walls;
+  }
+
+  /** Point the Cache's collision footprint at `site` (null on a map without one). */
+  setCacheSite(site: CacheSiteDef | null): void {
+    this.cacheWall = site && CACHE_BOX.solid ? fixtureAabb(CACHE_BOX, site.pos, site.rot ?? 0) : null;
+    this.rebuildWalls();
   }
 
   isRegionActive(region: number): boolean {

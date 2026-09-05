@@ -8,7 +8,7 @@ import { describe, it, expect } from "vitest";
 import { MAPS, getMap, DEFAULT_MAP } from "../src/data/maps";
 import { GameMap, INTERACT_RANGE } from "../src/sim/Map";
 import { World } from "../src/sim/World";
-import { resolveCircleObstacles } from "../src/sim/collision";
+import { resolveCircleObstacles, pointInObstacle } from "../src/sim/collision";
 import { FlowField } from "../src/sim/pathing";
 import { PROP_SPECS, footprintExtents, isSolidProp, propColliders, colliderAabb } from "../src/sim/props";
 import type { PropCollider } from "../src/sim/props";
@@ -187,9 +187,25 @@ describe.each(MAP_CASES)("%s map data", (_name, def) => {
   it("feeds one collision rect per solid collider and nothing for dressing", () => {
     const map = new GameMap(def);
     const pieces = solidProps(def).reduce((n, p) => n + propColliders(p).length, 0);
-    // Perk cabinets are solid; The Cache and supply crates deliberately are not.
+    // Perk cabinets and resupply crates are solid wherever they are. The Cache
+    // is solid too but is not counted here: a bare GameMap has no site until
+    // World points it at one, because the box moves.
     const machines = (def.perkMachines ?? []).length;
-    expect(map.walls.length).toBe(def.walls.length + def.doors.length + pieces + machines);
+    const crates = (def.supplies ?? []).length;
+    expect(map.walls.length).toBe(def.walls.length + def.doors.length + pieces + machines + crates);
+  });
+
+  it("carries The Cache's footprint, and moves it rather than leaving it behind", () => {
+    const map = new GameMap(def);
+    const before = map.walls.length;
+    const sites = def.cacheSites ?? [];
+    if (sites.length === 0) return;
+    map.setCacheSite(sites[0]);
+    expect(map.walls.length).toBe(before + 1);
+    map.setCacheSite(sites[sites.length - 1]);
+    expect(map.walls.length, "an old site left an invisible box behind").toBe(before + 1);
+    map.setCacheSite(null);
+    expect(map.walls.length).toBe(before);
   });
 
   it("leaves the inside of a multi-part prop walkable and reachable", () => {
@@ -206,6 +222,46 @@ describe.each(MAP_CASES)("%s map data", (_name, def) => {
       const moved = resolveCircleObstacles(p.pos, world.player.radius, world.terrain.heightAt(p.pos.x, p.pos.y), world.obstacles);
       expect.soft(Math.hypot(moved.x - p.pos.x, moved.y - p.pos.y), `${label} blocks its own centre`).toBeLessThan(0.01);
       expect.soft(flow.reachable(p.pos), `${label} cannot be pathed into`).toBe(true);
+    }
+  });
+
+  it("stops the player walking through The Cache or a resupply crate", () => {
+    // These are chest- and thigh-high crates you can see: standing inside one
+    // reads as a missing collider, which is exactly what it used to be. The
+    // Cache is checked at every site it can move to, not just its first.
+    const world = new World(def);
+    const r = world.player.radius;
+    (def.cacheSites ?? []).forEach((site, i) => {
+      world.moveCacheTo(i);
+      const moved = resolveCircleObstacles(site.pos, r, world.terrain.heightAt(site.pos.x, site.pos.y), world.obstacles);
+      expect
+        .soft(Math.hypot(moved.x - site.pos.x, moved.y - site.pos.y), `The Cache at ${site.pos.x},${site.pos.y} is walk-through`)
+        .toBeGreaterThan(0.1);
+    });
+    for (const c of def.supplies ?? []) {
+      const moved = resolveCircleObstacles(c.pos, r, world.terrain.heightAt(c.pos.x, c.pos.y), world.obstacles);
+      expect
+        .soft(Math.hypot(moved.x - c.pos.x, moved.y - c.pos.y), `supply crate at ${c.pos.x},${c.pos.y} is walk-through`)
+        .toBeGreaterThan(0.1);
+    }
+  });
+
+  it("takes The Cache's collider with it when the box moves", () => {
+    const sites = def.cacheSites ?? [];
+    if (sites.length < 2) return;
+    const world = new World(def);
+    const r = world.player.radius;
+    world.moveCacheTo(0);
+    world.moveCacheTo(1);
+    const old = sites[0].pos;
+    const moved = resolveCircleObstacles(old, r, world.terrain.heightAt(old.x, old.y), world.obstacles);
+    // Only the box the player can see may block. An abandoned site must be clear
+    // unless something else authored there is standing in the way.
+    const blockedByElse = world.obstacles.some(
+      (o) => o.top > world.terrain.heightAt(old.x, old.y) + 0.05 && pointInObstacle(old.x, old.y, o),
+    );
+    if (!blockedByElse) {
+      expect(Math.hypot(moved.x - old.x, moved.y - old.y), "an invisible Cache was left behind").toBeLessThan(0.01);
     }
   });
 

@@ -20,7 +20,7 @@ import { resolveCircleObstacles, supportHeight, rayVsCircle, nearestWallDist, cl
 import { canFire, consumeRound, canReload } from "./Weapons";
 import { POINTS_HIT, POINTS_KILL, POINTS_REPAIR, spend } from "./Economy";
 import { PROP_SPECS, propColliders, colliderAabb, isSolidProp } from "./props";
-import { PERK_MACHINE, fixtureAabb } from "./fixtures";
+import { PERK_MACHINE, SUPPLY_CRATE, CACHE_BOX, fixtureAabb } from "./fixtures";
 import { BOARD_TEAR_TIME, BOARD_REPAIR_TIME } from "./Barriers";
 import { Cache, CACHE_COST } from "./Cache";
 import {
@@ -165,7 +165,9 @@ export class World {
     this.reset();
   }
 
-  /** Rebuild the height-aware obstacle list (walls + closed doors + solid props). */
+  /** Rebuild the height-aware obstacle list (walls, closed doors, solid props and
+   *  fixtures). Cheap enough to re-run whenever the geometry changes — a door
+   *  opening, or The Cache moving to a new site. */
   private buildObstacles(): void {
     const obs: Obstacle[] = [];
     for (const w of this.def.walls) obs.push({ rect: w, top: WALL_TOP });
@@ -186,15 +188,47 @@ export class World {
         });
       }
     }
-    for (const m of this.def.perkMachines ?? []) {
+    if (PERK_MACHINE.solid) {
+      for (const m of this.def.perkMachines ?? []) {
+        obs.push({
+          rect: fixtureAabb(PERK_MACHINE, m.pos, m.rot ?? 0),
+          top: this.terrain.heightAt(m.pos.x, m.pos.y) + PERK_MACHINE.height,
+          rot: m.rot ?? 0,
+          half: { x: PERK_MACHINE.hx, y: PERK_MACHINE.hy },
+        });
+      }
+    }
+    if (SUPPLY_CRATE.solid) {
+      for (const c of this.def.supplies ?? []) {
+        obs.push({
+          rect: fixtureAabb(SUPPLY_CRATE, c.pos, c.rot ?? 0),
+          top: this.terrain.heightAt(c.pos.x, c.pos.y) + SUPPLY_CRATE.height,
+          rot: c.rot ?? 0,
+          half: { x: SUPPLY_CRATE.hx, y: SUPPLY_CRATE.hy },
+        });
+      }
+    }
+    // The Cache, wherever it is standing this minute. Rebuilt on every relocate,
+    // so no invisible crate is left behind at the site it just left.
+    const site = CACHE_BOX.solid ? this.cacheSite() : null;
+    if (site) {
       obs.push({
-        rect: fixtureAabb(PERK_MACHINE, m.pos, m.rot ?? 0),
-        top: this.terrain.heightAt(m.pos.x, m.pos.y) + PERK_MACHINE.height,
-        rot: m.rot ?? 0,
-        half: { x: PERK_MACHINE.hx, y: PERK_MACHINE.hy },
+        rect: fixtureAabb(CACHE_BOX, site.pos, site.rot ?? 0),
+        top: this.terrain.heightAt(site.pos.x, site.pos.y) + CACHE_BOX.height,
+        rot: site.rot ?? 0,
+        half: { x: CACHE_BOX.hx, y: CACHE_BOX.hy },
       });
     }
     this.obstacles = obs;
+  }
+
+  /** Move the Cache's collision footprint to its current site and re-derive
+   *  everything downstream of it: the obstacle list, the map walls the bullets
+   *  and the flow field read, and the flow field itself. */
+  private syncCacheCollision(): void {
+    this.map.setCacheSite(this.cacheSite());
+    this.buildObstacles();
+    this.flow.rebuild(this.map.walls);
   }
 
   /** Reset to a fresh game on the current map, preserving wired callbacks. */
@@ -222,6 +256,7 @@ export class World {
     this.spawnCooldown = 0;
     this.flowTimer = 0;
     this.prevFiring = this.prevInteract = this.prevReload = this.prevGrenade = false;
+    this.map.setCacheSite(this.cacheSite());
     this.buildObstacles();
     this.flow.rebuild(this.map.walls);
     this.flow.compute(this.player.pos);
@@ -495,12 +530,19 @@ export class World {
     }
   }
 
+  /** Stand the box on `site` (an index into `def.cacheSites`) and take its
+   *  collision footprint with it, so nothing is left behind where it was. */
+  moveCacheTo(site: number): void {
+    this.cache.relocate(site);
+    this.syncCacheCollision();
+  }
+
   /** Move the box to another live site — or restock in place if it is the only one. */
   private relocateCache(): void {
     const options = this.map.liveCacheSites().filter((i) => i !== this.cache.site);
     const moved = options.length > 0;
     const next = moved ? options[randInt(0, options.length - 1)] : this.cache.site;
-    this.cache.relocate(next);
+    this.moveCacheTo(next);
     this.notice = { text: moved ? "The Cache has moved" : "The Cache restocked", ttl: 2.4 };
     this.onCacheMove?.();
   }
