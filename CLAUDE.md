@@ -69,6 +69,25 @@ changes nothing about game state.
 | `main.ts` | bootstrap + menu→playing→paused/over state machine; `window.__up` |
 | `roadmap/main.ts` | the **public roadmap page** (`/roadmap.html`), rendered at build time from `docs/ROADMAP_ITEMS.json` — the same file that syncs the GitHub Project |
 
+## Commit Messages
+
+- **Claude co-authorship is allowed on this project.** End commit messages here
+  with the attribution trailer:
+
+  ```
+  Co-Authored-By: Claude <noreply@anthropic.com>
+  ```
+
+  (Use the specific model line when the harness supplies one, e.g.
+  `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`.)
+- This is a deliberate **exception** to the workspace-wide no-attribution rule in
+  `.claude/CLAUDE.md` and the global rule in `~/.claude/CLAUDE.md`. It applies to
+  this repository only — every other project in the workspace still gets no
+  trailer.
+- Everything above the trailer is still just the change description.
+
+---
+
 ## Conventions
 
 - **`sim/` stays DOM-free and three-free.** No `document`, no `THREE`, no
