@@ -1237,7 +1237,11 @@ export function makeDoorMesh(width: number, height: number, thickness: number, n
 export function makePerkMachineMesh(color: number, name: string, short: string, cost: number): THREE.Group {
   const g = new THREE.Group();
   const shell = metalMaterial(0x2b2f33, 0.55);
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 2.1, 1.1), shell);
+  // Sized from PERK_MACHINE (hx 0.55 across the sim x axis, hy 0.45 across y).
+  // Three's z is the sim's y, so the wide side is x and the shallow side is z —
+  // get these the wrong way round and the cabinet you see is 90 degrees out from
+  // the box that stops you.
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.1, 0.9), shell);
   body.position.y = 1.05;
   body.castShadow = true;
   body.receiveShadow = true;
@@ -1255,18 +1259,18 @@ export function makePerkMachineMesh(color: number, name: string, short: string, 
     }),
   );
   face.name = "glow";
-  face.position.set(0.46, 1.28, 0);
+  face.position.set(0.56, 1.28, 0);
   face.rotation.y = Math.PI / 2;
   g.add(face);
 
   // Kick plate and a colour band round the shoulders, so it reads from behind too.
   const band = new THREE.Mesh(
-    new THREE.BoxGeometry(0.94, 0.16, 1.14),
+    new THREE.BoxGeometry(1.14, 0.16, 0.94),
     new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.7, roughness: 0.5 }),
   );
   band.position.y = 1.98;
   g.add(band);
-  const foot = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.12, 1.2), metalMaterial(0x1a1d20, 0.7));
+  const foot = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, 1.0), metalMaterial(0x1a1d20, 0.7));
   foot.position.y = 0.06;
   foot.receiveShadow = true;
   g.add(foot);
